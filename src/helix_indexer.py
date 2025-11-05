@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 """
 HelixDB File Indexer Service
-Auto-indexes file changes using inotify and Tree-sitter semantic chunking
+Auto-indexes file changes using inotify and HelixDB's built-in smart chunking.
+Delegates chunking to HelixDB backend which automatically detects file types.
 """
 
 import os
 import sys
 import time
-import json
 import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import pyinotify
-import yaml
 import fnmatch
 from dataclasses import dataclass
+
+try:
+    from helix import Client, Chunk
+except ImportError:
+    print("Error: helix-py is not installed. Install with: pip install helix-py")
+    sys.exit(1)
 
 
 @dataclass
@@ -34,142 +39,80 @@ class IndexerConfig:
             self.exclude_patterns = ["*.swp", "*.tmp", "*~", ".git/*", "node_modules/*"]
 
 
-class HelixClient:
-    """Simple HelixDB client for indexing operations"""
+class HelixIndexer:
+    """HelixDB client for indexing operations with built-in smart chunking"""
     
     def __init__(self, host: str = "localhost", port: int = 6969):
-        self.host = host
-        self.port = port
-        self.base_url = f"http://{host}:{port}"
-    
-    def index_document(self, filepath: str, content: str, metadata: Dict[str, Any]) -> bool:
-        """Index a document in HelixDB"""
         try:
-            # Simulate HelixDB indexing - replace with actual client
-            logging.info(f"Indexing: {filepath} ({len(content)} chars)")
+            self.client = Client(host=host, port=port, local=False)
+            self.client.is_connected()  # Test connection
+            logging.info(f"✅ Connected to HelixDB at {host}:{port}")
+        except Exception as e:
+            logging.error(f"❌ Failed to connect to HelixDB: {e}")
+            raise
+    
+    def index_document(self, filepath: str, content: str) -> bool:
+        """
+        Index a document in HelixDB using backend smart chunking.
+        HelixDB automatically detects file type and applies appropriate chunking.
+        """
+        try:
+            if not content.strip():
+                logging.debug(f"Skipping empty file: {filepath}")
+                return True
             
-            # Chunk content based on file type
-            chunks = self._chunk_content(content, filepath)
+            path_obj = Path(filepath)
+            file_ext = path_obj.suffix.lower()
+            filetype = file_ext[1:] if file_ext else "unknown"
             
-            for i, chunk in enumerate(chunks):
-                chunk_metadata = {
-                    **metadata,
-                    "chunk_index": i,
-                    "chunk_count": len(chunks)
+            # Metadata for the document
+            metadata = {
+                "filepath": filepath,
+                "filename": path_obj.name,
+                "filetype": filetype,
+                "size": len(content),
+                "indexed_at": int(time.time()),
+                "directory": str(path_obj.parent)
+            }
+            
+            # HelixDB's query for inserting indexed documents
+            # The backend handles chunking automatically based on file type
+            result = self.client.query(
+                "AddDocument",
+                {
+                    "filepath": filepath,
+                    "content": content,
+                    "filetype": filetype,
+                    "metadata": metadata
                 }
-                # Here you would call actual HelixDB API
-                # helix_client.add_document(text=chunk, metadata=chunk_metadata)
-                
+            )
+            
+            logging.info(f"✓ Indexed: {filepath} ({len(content)} chars, type: {filetype})")
             return True
             
         except Exception as e:
             logging.error(f"Failed to index {filepath}: {e}")
             return False
     
-    def _chunk_content(self, content: str, filepath: str) -> List[str]:
-        """Chunk content based on file type using semantic strategies"""
-        file_ext = Path(filepath).suffix.lower()
-        
-        # Code files - simulate Tree-sitter chunking
-        if file_ext in ['.nix', '.py', '.rs', '.go', '.js', '.ts']:
-            return self._chunk_code(content, file_ext)
-        
-        # Config files - chunk by sections
-        elif file_ext in ['.yaml', '.yml', '.toml', '.json']:
-            return self._chunk_config(content)
-        
-        # Default semantic chunking
-        else:
-            return self._chunk_semantic(content)
-    
-    def _chunk_code(self, content: str, ext: str) -> List[str]:
-        """Simulate Tree-sitter code chunking"""
-        lines = content.splitlines()
-        chunks = []
-        current_chunk = []
-        indent_stack = []
-        
-        for line in lines:
-            stripped = line.strip()
-            if not stripped:
-                current_chunk.append(line)
-                continue
-                
-            # Simple heuristic for function/block boundaries
-            if any(keyword in stripped for keyword in ['def ', 'class ', 'function ', '{']):
-                if current_chunk:
-                    chunks.append('\n'.join(current_chunk))
-                    current_chunk = []
-                current_chunk.append(line)
-            else:
-                current_chunk.append(line)
-                
-            # Chunk at reasonable size
-            if len(current_chunk) > 50:
-                chunks.append('\n'.join(current_chunk))
-                current_chunk = []
-        
-        if current_chunk:
-            chunks.append('\n'.join(current_chunk))
-            
-        return [chunk for chunk in chunks if chunk.strip()]
-    
-    def _chunk_config(self, content: str) -> List[str]:
-        """Chunk configuration files by sections"""
-        lines = content.splitlines()
-        chunks = []
-        current_chunk = []
-        
-        for line in lines:
-            stripped = line.strip()
-            # New section (starts at column 0, not empty, not comment)
-            if stripped and not line.startswith(' ') and not line.startswith('#'):
-                if current_chunk:
-                    chunks.append('\n'.join(current_chunk))
-                    current_chunk = []
-            current_chunk.append(line)
-            
-        if current_chunk:
-            chunks.append('\n'.join(current_chunk))
-            
-        return [chunk for chunk in chunks if chunk.strip()]
-    
-    def _chunk_semantic(self, content: str, max_size: int = 2000) -> List[str]:
-        """Basic semantic chunking by paragraphs/sentences"""
-        if len(content) <= max_size:
-            return [content]
-            
-        # Split by double newlines (paragraphs)
-        paragraphs = content.split('\n\n')
-        chunks = []
-        current_chunk = []
-        current_size = 0
-        
-        for para in paragraphs:
-            para_size = len(para)
-            if current_size + para_size > max_size and current_chunk:
-                chunks.append('\n\n'.join(current_chunk))
-                current_chunk = []
-                current_size = 0
-            
-            current_chunk.append(para)
-            current_size += para_size
-            
-        if current_chunk:
-            chunks.append('\n\n'.join(current_chunk))
-            
-        return chunks
+    def health_check(self) -> bool:
+        """Check if HelixDB is healthy"""
+        try:
+            self.client.is_connected()
+            return True
+        except Exception:
+            return False
 
 
 class FileChangeHandler(pyinotify.ProcessEvent):
     """Handle file system events for indexing"""
     
-    def __init__(self, helix_client: HelixClient, config: IndexerConfig):
+    def __init__(self, indexer: HelixIndexer, config: IndexerConfig):
         super().__init__()
-        self.helix_client = helix_client
+        self.indexer = indexer
         self.config = config
         self.pending_files = set()
         self.last_batch_time = time.time()
+        self.failed_files = {}
     
     def should_ignore_file(self, filepath: str) -> bool:
         """Check if file should be ignored based on patterns"""
@@ -189,8 +132,13 @@ class FileChangeHandler(pyinotify.ProcessEvent):
         filepath = event.pathname
         
         if self.should_ignore_file(filepath):
+            logging.debug(f"Ignoring excluded file: {filepath}")
             return
-            
+        
+        # Skip if file doesn't exist or can't be read
+        if not os.path.isfile(filepath):
+            return
+        
         # Add to pending batch
         self.pending_files.add(filepath)
         
@@ -205,14 +153,20 @@ class FileChangeHandler(pyinotify.ProcessEvent):
         if not self.pending_files:
             return
             
-        logging.info(f"Processing batch of {len(self.pending_files)} files")
+        logging.info(f"📦 Processing batch of {len(self.pending_files)} files")
         
         for filepath in list(self.pending_files):
             try:
                 self.index_file(filepath)
                 self.pending_files.discard(filepath)
+                # Reset retry count on success
+                if filepath in self.failed_files:
+                    del self.failed_files[filepath]
+                    
             except Exception as e:
                 logging.error(f"Failed to process {filepath}: {e}")
+                # Track failures for potential retry
+                self.failed_files[filepath] = self.failed_files.get(filepath, 0) + 1
                 
         self.last_batch_time = time.time()
     
@@ -222,33 +176,19 @@ class FileChangeHandler(pyinotify.ProcessEvent):
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
             
-            if not content.strip():
-                return  # Skip empty files
-            
-            # Extract metadata
-            path_obj = Path(filepath)
-            metadata = {
-                "filepath": filepath,
-                "filename": path_obj.name,
-                "filetype": path_obj.suffix[1:] if path_obj.suffix else "unknown",
-                "size": len(content),
-                "indexed_at": int(time.time()),
-                "directory": str(path_obj.parent)
-            }
-            
-            # Index in HelixDB
-            success = self.helix_client.index_document(filepath, content, metadata)
-            if success:
-                logging.debug(f"Successfully indexed: {filepath}")
-            else:
-                logging.warning(f"Failed to index: {filepath}")
+            # Use HelixDB's indexer with built-in smart chunking
+            success = self.indexer.index_document(filepath, content)
+            if not success:
+                logging.warning(f"Indexing returned false for: {filepath}")
                 
+        except PermissionError:
+            logging.debug(f"Permission denied reading: {filepath}")
         except Exception as e:
             logging.error(f"Error indexing {filepath}: {e}")
 
 
 def load_config() -> IndexerConfig:
-    """Load configuration from environment and config files"""
+    """Load configuration from environment"""
     config = IndexerConfig()
     
     # Environment variables
@@ -257,11 +197,11 @@ def load_config() -> IndexerConfig:
     
     watch_paths_env = os.getenv("WATCH_PATHS")
     if watch_paths_env:
-        config.watch_paths = watch_paths_env.split(":")
+        config.watch_paths = [p.strip() for p in watch_paths_env.split(":") if p.strip()]
     
     exclude_patterns_env = os.getenv("EXCLUDE_PATTERNS") 
     if exclude_patterns_env:
-        config.exclude_patterns = exclude_patterns_env.split(":")
+        config.exclude_patterns = [p.strip() for p in exclude_patterns_env.split(":") if p.strip()]
     
     config.log_level = os.getenv("LOG_LEVEL", config.log_level)
     
@@ -276,7 +216,7 @@ def setup_logging(level: str):
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
         handlers=[
             logging.StreamHandler(sys.stdout),
-            logging.FileHandler('/var/lib/helix-indexer/indexer.log')
+            logging.FileHandler('/var/lib/helix-indexer/indexer.log', mode='a')
         ]
     )
 
@@ -286,37 +226,45 @@ def main():
     config = load_config()
     setup_logging(config.log_level)
     
-    logging.info("Starting HelixDB File Indexer")
-    logging.info(f"Watching paths: {config.watch_paths}")
-    logging.info(f"Exclude patterns: {config.exclude_patterns}")
+    logging.info("🚀 Starting HelixDB File Indexer")
+    logging.info(f"📂 Watching paths: {config.watch_paths}")
+    logging.info(f"🚫 Exclude patterns: {config.exclude_patterns}")
+    logging.info(f"🗄️  Batch size: {config.batch_size}")
     
     # Initialize HelixDB client
-    helix_client = HelixClient(config.helix_host, config.helix_port)
+    try:
+        indexer = HelixIndexer(config.helix_host, config.helix_port)
+    except Exception as e:
+        logging.error(f"💥 Failed to initialize HelixDB indexer: {e}")
+        sys.exit(1)
     
     # Setup file monitoring
     wm = pyinotify.WatchManager()
     mask = pyinotify.IN_MODIFY | pyinotify.IN_CREATE | pyinotify.IN_MOVED_TO
     
-    handler = FileChangeHandler(helix_client, config)
+    handler = FileChangeHandler(indexer, config)
     notifier = pyinotify.Notifier(wm, handler)
     
     # Add watches for all configured paths
     for watch_path in config.watch_paths:
         if os.path.exists(watch_path):
-            logging.info(f"Adding watch for: {watch_path}")
-            wm.add_watch(watch_path, mask, rec=True, auto_add=True)
+            logging.info(f"👀 Adding watch for: {watch_path}")
+            try:
+                wm.add_watch(watch_path, mask, rec=True, auto_add=True)
+            except Exception as e:
+                logging.error(f"Failed to add watch for {watch_path}: {e}")
         else:
-            logging.warning(f"Watch path does not exist: {watch_path}")
+            logging.warning(f"⚠️  Watch path does not exist: {watch_path}")
     
     try:
-        logging.info("File indexer started successfully")
+        logging.info("✨ File indexer started successfully. Monitoring for changes...")
         notifier.loop()
     except KeyboardInterrupt:
-        logging.info("Shutting down file indexer")
+        logging.info("🛑 Shutting down file indexer")
         # Process any remaining files
         handler.process_batch()
     except Exception as e:
-        logging.error(f"Indexer crashed: {e}")
+        logging.error(f"💥 Indexer crashed: {e}")
         sys.exit(1)
 
 

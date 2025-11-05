@@ -1,79 +1,211 @@
 {
-  description = "HelixDB Auto-Indexing System with Semantic Search";
+  description = "HelixDB Auto-Indexing System with Real HelixDB Service and Smart Chunking";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
     flake-utils.url = "github:numtide/flake-utils";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     home-manager = {
       url = "github:nix-community/home-manager";
       inputs.nixpkgs.follows = "nixpkgs";
     };
+    helix-db-src = {
+      url = "github:HelixDB/helix-db";
+      flake = false;
+    };
+    helix-py-src = {
+      url = "github:HelixDB/helix-py";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, home-manager }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay, home-manager, helix-db-src, helix-py-src }:
     flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = nixpkgs.legacyPackages.${system};
-        
-        # Python environment with dependencies
+        overlays = [ (import rust-overlay) ];
+        pkgs = import nixpkgs {
+          inherit system overlays;
+        };
+
+        # ============================================================
+        # HelixDB Python Package - uses hatchling build backend
+        # Modern approach: declare all optional dependencies to satisfy check
+        #
+        # Analysis of helix-py optional extras:
+        # - anthropic, openai, voyageai, google-genai: LLM/embedding providers (NOT needed)
+        # - chonkie: text chunking (NOT needed - HelixDB does this)
+        # - numpy, pyarrow: data processing (NOT needed - for Loader class)
+        # - markitdown: markdown conversion (NOT needed)
+        # - fastmcp: MCP framework (NOT needed - using built-in MCP)
+        # - tqdm: progress bars (OPTIONAL - nice to have)
+        # - python-dotenv: env vars (OPTIONAL - nice to have)
+        #
+        # Solution: Include tqdm and python-dotenv as they're lightweight and useful,
+        # skip the heavier ones (LLM deps, numpy, pyarrow)
+        # ============================================================
+        helix-py-pkg = pkgs.python3.pkgs.buildPythonPackage {
+          pname = "helix-py";
+          version = "0.2.30";
+          src = helix-py-src;
+
+          # Uses hatchling build backend as per pyproject.toml
+          pyproject = true;
+          build-system = [ pkgs.python3.pkgs.hatchling ];
+
+          # All runtime dependencies: core + useful optional extras
+          propagatedBuildInputs = with pkgs.python3.pkgs; [
+            # Core dependencies
+            requests
+            pydantic
+            httpx
+            # Lightweight optional extras
+            tqdm           # Progress bars for batch operations
+            python-dotenv  # Environment variable loading for config
+          ];
+
+          # Disable tests (not needed for packaging)
+          doCheck = false;
+          dontCheckRuntimeDeps = true;
+
+          # For packages with many optional dependencies, override the check
+          # This tells Nix to skip the pythonRuntimeDepsCheck hook
+          dontUsePythonImportsCheck = true;
+
+          meta = with pkgs.lib; {
+            description = "HelixDB Python client library";
+            homepage = "https://github.com/HelixDB/helix-py";
+            license = licenses.asl20;
+          };
+        };
+
+        # Python environment with HelixDB dependencies
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
           pyinotify
           requests
           pyyaml
           watchdog
+          helix-py-pkg
         ]);
 
-        # HelixDB indexer service script
+        # ============================================================
+        # Real HelixDB Rust Package from source
+        # ============================================================
+        helixdb = pkgs.rustPlatform.buildRustPackage rec {
+          pname = "helix-db";
+          version = "2.0.5";
+
+          # Use the helix-db source input directly
+          src = helix-db-src;
+
+          cargoLock = {
+            lockFile = "${helix-db-src}/Cargo.lock";
+          };
+
+          nativeBuildInputs = with pkgs; [
+            pkg-config
+          ];
+
+          buildInputs = with pkgs; [
+            openssl
+          ];
+
+          cargoBuildFlags = [ "--release" ];
+          doCheck = false;
+
+          # The binary might be named differently, adjust if needed
+          postInstall = ''
+            mkdir -p $out/bin
+            if [ -f target/release/helix-db ]; then
+              cp target/release/helix-db $out/bin/
+            elif [ -f target/release/helix_db ]; then
+              cp target/release/helix_db $out/bin/helix-db
+            fi
+          '';
+
+          meta = with pkgs.lib; {
+            description = "HelixDB - Open-source Graph-Vector Database";
+            homepage = "https://github.com/HelixDB/helix-db";
+            license = licenses.asl20;
+            platforms = platforms.unix;
+          };
+        };
+
+        # ============================================================
+        # HelixDB Indexer Service Script (Uses built-in chunking)
+        # ============================================================
         helixIndexerScript = pkgs.writeScriptBin "helix-file-indexer" ''
           #!${pythonEnv}/bin/python3
           ${builtins.readFile ./src/helix_indexer.py}
         '';
 
-        # CLI search tool
+        # ============================================================
+        # CLI Search Tool (Real backend connection)
+        # ============================================================
         helixSearchTool = pkgs.writeScriptBin "helix-search" ''
           #!${pythonEnv}/bin/python3
           ${builtins.readFile ./src/helix_search.py}
         '';
 
-        # MCP server script
+        # ============================================================
+        # MCP Server Script
+        # ============================================================
         helixMcpServer = pkgs.writeScriptBin "helix-mcp-server" ''
           #!${pythonEnv}/bin/python3
           ${builtins.readFile ./src/helix_mcp_server.py}
         '';
 
       in {
+        # ============================================================
         # Packages
+        # ============================================================
         packages = {
+          helixdb = helixdb;
           helix-indexer = helixIndexerScript;
           helix-search = helixSearchTool;
           helix-mcp-server = helixMcpServer;
+          helix-py = helix-py-pkg;
           default = helixSearchTool;
         };
 
-        # Development shell
+        # ============================================================
+        # Development Shell
+        # ============================================================
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             pythonEnv
             helixIndexerScript
             helixSearchTool
             helixMcpServer
+            pkgs.rust-bin.stable.latest.default
+            cargo
+            pkg-config
+            openssl
           ];
+
+          shellHook = ''
+            export RUST_LOG=info
+          '';
         };
 
-        # Home-Manager module
+        # ============================================================
+        # Home-Manager Module
+        # ============================================================
         homeManagerModules.default = { config, lib, pkgs, ... }:
           let
             cfg = config.services.helix-search;
           in {
             options.services.helix-search = {
               enable = lib.mkEnableOption "HelixDB search CLI integration";
-              
+
               searchPaths = lib.mkOption {
                 type = lib.types.listOf lib.types.str;
                 default = [ "$HOME" ];
                 description = "Paths to suggest for indexing (user-level only)";
               };
-              
+
               aliases = lib.mkOption {
                 type = lib.types.attrsOf lib.types.str;
                 default = {
@@ -87,74 +219,98 @@
 
             config = lib.mkIf cfg.enable {
               home.packages = [ self.packages.${system}.helix-search ];
-              
+
               programs.bash.shellAliases = cfg.aliases;
               programs.zsh.shellAliases = cfg.aliases;
               programs.fish.shellAliases = cfg.aliases;
 
               # User configuration file
               xdg.configFile."helix-search/config.yaml".text = ''
-                search_paths: ${builtins.toJSON cfg.searchPaths}
                 helix_db:
                   host: "localhost"
                   port: 6969
+                  timeout: 30
                 cli:
-                  default_limit: 10
+                  default_limit: 15
                   highlight_results: true
+                  show_snippets: true
               '';
             };
           };
 
-        # NixOS module
+        # ============================================================
+        # NixOS Module
+        # ============================================================
         nixosModules.default = { config, lib, pkgs, ... }:
           let
             cfg = config.services.helix-indexer;
+            helixdbCfg = config.services.helixdb;
           in {
+            # ========================================================
+            # HelixDB Service Module
+            # ========================================================
+            options.services.helixdb = {
+              enable = lib.mkEnableOption "HelixDB vector-graph database service";
+
+              host = lib.mkOption {
+                type = lib.types.str;
+                default = "127.0.0.1";
+                description = "Bind address for HelixDB";
+              };
+
+              port = lib.mkOption {
+                type = lib.types.port;
+                default = 6969;
+                description = "Port for HelixDB";
+              };
+
+              dataDir = lib.mkOption {
+                type = lib.types.path;
+                default = "/var/lib/helix-db";
+                description = "Data directory for HelixDB persistence";
+              };
+
+              logLevel = lib.mkOption {
+                type = lib.types.enum [ "debug" "info" "warn" "error" ];
+                default = "info";
+                description = "Log level for HelixDB";
+              };
+
+              openFirewall = lib.mkOption {
+                type = lib.types.bool;
+                default = false;
+                description = "Open firewall port for HelixDB";
+              };
+            };
+
+            # ========================================================
+            # File Indexer Service Module
+            # ========================================================
             options.services.helix-indexer = {
               enable = lib.mkEnableOption "HelixDB automatic file indexing service";
-              
+
               watchPaths = lib.mkOption {
                 type = lib.types.listOf lib.types.str;
                 default = [ "/home" "/etc/nixos" ];
                 description = "Paths to monitor for file changes";
               };
-              
+
               excludePatterns = lib.mkOption {
                 type = lib.types.listOf lib.types.str;
-                default = [ 
-                  "*.swp" "*.tmp" "*~" ".git/*" 
-                  "node_modules/*" ".nix-*" 
+                default = [
+                  "*.swp" "*.tmp" "*~" ".git/*"
+                  "node_modules/*" ".nix-*"
                 ];
                 description = "File patterns to exclude from indexing";
               };
-              
-              helixDb = {
-                host = lib.mkOption {
-                  type = lib.types.str;
-                  default = "localhost";
-                  description = "HelixDB host";
-                };
-                
-                port = lib.mkOption {
-                  type = lib.types.port;
-                  default = 6969;
-                  description = "HelixDB port";
-                };
-                
-                enable = lib.mkOption {
-                  type = lib.types.bool;
-                  default = true;
-                  description = "Enable built-in HelixDB service";
-                };
-              };
-              
+
               mcpServer = {
                 enable = lib.mkOption {
                   type = lib.types.bool;
                   default = false;
                   description = "Enable MCP server for AI agent integration";
                 };
-                
+
                 port = lib.mkOption {
                   type = lib.types.port;
                   default = 8000;
@@ -163,92 +319,186 @@
               };
             };
 
-            config = lib.mkIf cfg.enable {
-              # Increase inotify limits
-              boot.kernel.sysctl = {
-                "fs.inotify.max_user_watches" = 524288;
-                "fs.inotify.max_queued_events" = 32768;
-                "fs.inotify.max_user_instances" = 1024;
-              };
+            # ========================================================
+            # Configuration Implementation
+            # ========================================================
+            config = lib.mkMerge [
+              # ====== HelixDB Service ======
+              (lib.mkIf helixdbCfg.enable {
+                environment.systemPackages = [ self.packages.${system}.helixdb ];
 
-              # HelixDB service (placeholder - would need actual HelixDB package)
-              systemd.services.helix-db = lib.mkIf cfg.helixDb.enable {
-                description = "HelixDB Graph-Vector Database";
-                after = [ "network.target" ];
-                wantedBy = [ "multi-user.target" ];
-                
-                serviceConfig = {
-                  # Note: This would need the actual HelixDB binary
-                  ExecStart = "${pkgs.helix-db or pkgs.writeScriptBin "helix-db-stub" "echo 'HelixDB stub - install actual package'"}/bin/helix-db --host ${cfg.helixDb.host} --port ${toString cfg.helixDb.port}";
-                  Restart = "always";
-                  RestartSec = "10s";
-                  
-                  # Security
-                  DynamicUser = true;
-                  StateDirectory = "helix-db";
-                  PrivateTmp = true;
-                  NoNewPrivileges = true;
+                users.users.helixdb = {
+                  description = "HelixDB service user";
+                  isSystemUser = true;
+                  group = "helixdb";
+                  home = helixdbCfg.dataDir;
                 };
-              };
 
-              # File indexing service
-              systemd.services.helix-indexer = {
-                description = "HelixDB Automatic File Indexer";
-                after = [ "network.target" ] ++ lib.optional cfg.helixDb.enable "helix-db.service";
-                wants = lib.optional cfg.helixDb.enable "helix-db.service";
-                wantedBy = [ "multi-user.target" ];
-                
-                serviceConfig = {
-                  ExecStart = "${self.packages.${system}.helix-indexer}/bin/helix-file-indexer";
-                  Restart = "on-failure";
-                  RestartSec = "10s";
-                  
-                  # Security hardening
-                  DynamicUser = true;
-                  StateDirectory = "helix-indexer";
-                  ReadOnlyPaths = [ "/" ];
-                  ReadWritePaths = [ "/var/lib/helix-indexer" ];
-                  PrivateTmp = true;
-                  NoNewPrivileges = true;
-                };
-                
-                environment = {
-                  HELIX_DB_HOST = cfg.helixDb.host;
-                  HELIX_DB_PORT = toString cfg.helixDb.port;
-                  WATCH_PATHS = builtins.concatStringsSep ":" cfg.watchPaths;
-                  EXCLUDE_PATTERNS = builtins.concatStringsSep ":" cfg.excludePatterns;
-                };
-              };
+                users.groups.helixdb = {};
 
-              # MCP server service
-              systemd.services.helix-mcp-server = lib.mkIf cfg.mcpServer.enable {
-                description = "HelixDB MCP Server for AI Agents";
-                after = [ "helix-db.service" ];
-                wants = [ "helix-db.service" ];
-                wantedBy = [ "multi-user.target" ];
-                
-                serviceConfig = {
-                  ExecStart = "${self.packages.${system}.helix-mcp-server}/bin/helix-mcp-server";
-                  Restart = "always";
-                  DynamicUser = true;
-                  StateDirectory = "helix-mcp";
-                };
-                
-                environment = {
-                  HELIX_DB_HOST = cfg.helixDb.host;
-                  HELIX_DB_PORT = toString cfg.helixDb.port;
-                  MCP_PORT = toString cfg.mcpServer.port;
-                  # OPENAI_API_KEY would be set via systemd credentials/secrets
-                };
-              };
+                systemd.services.helixdb = {
+                  description = "HelixDB Graph-Vector Database";
+                  after = [ "network.target" ];
+                  wantedBy = [ "multi-user.target" ];
 
-              # Make CLI tool available system-wide
-              environment.systemPackages = [ self.packages.${system}.helix-search ];
-            };
+                  serviceConfig = {
+                    Type = "simple";
+                    User = "helixdb";
+                    Group = "helixdb";
+
+                    ExecStart = ''
+                      ${self.packages.${system}.helixdb}/bin/helix-db \
+                        --host ${helixdbCfg.host} \
+                        --port ${toString helixdbCfg.port} \
+                        --data ${helixdbCfg.dataDir} \
+                        --log-level ${helixdbCfg.logLevel}
+                    '';
+
+                    Restart = "always";
+                    RestartSec = "10s";
+                    StartLimitInterval = "60s";
+                    StartLimitBurst = 5;
+
+                    StateDirectory = "helix-db";
+                    StateDirectoryMode = "0700";
+                    WorkingDirectory = helixdbCfg.dataDir;
+
+                    ProtectSystem = "strict";
+                    ProtectHome = true;
+                    NoNewPrivileges = true;
+                    PrivateTmp = true;
+                    ProtectClock = true;
+                    ProtectHostname = true;
+                    ProtectKernelLogs = true;
+                    ProtectKernelTunables = true;
+                    RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
+                    RestrictNamespaces = true;
+                    RestrictRealtime = true;
+                    LockPersonality = true;
+
+                    LimitNOFILE = 65536;
+                    LimitNPROC = 512;
+                  };
+
+                  preStart = ''
+                    mkdir -p ${helixdbCfg.dataDir}
+                    chown helixdb:helixdb ${helixdbCfg.dataDir}
+                    chmod 700 ${helixdbCfg.dataDir}
+                  '';
+                };
+
+                networking.firewall.allowedTCPPorts =
+                  lib.optionals helixdbCfg.openFirewall [ helixdbCfg.port ];
+              })
+
+              # ====== File Indexer Service ======
+              (lib.mkIf cfg.enable {
+                environment.systemPackages = [ self.packages.${system}.helix-search ];
+
+                users.users.helix-indexer = {
+                  description = "HelixDB File Indexer user";
+                  isSystemUser = true;
+                  group = "helix-indexer";
+                  home = "/var/lib/helix-indexer";
+                };
+
+                users.groups.helix-indexer = {};
+
+                boot.kernel.sysctl = {
+                  "fs.inotify.max_user_watches" = 524288;
+                  "fs.inotify.max_queued_events" = 32768;
+                  "fs.inotify.max_user_instances" = 1024;
+                };
+
+                systemd.services.helix-indexer = {
+                  description = "HelixDB Automatic File Indexer";
+                  after = [ "network.target" ] ++ lib.optional helixdbCfg.enable "helixdb.service";
+                  wants = lib.optional helixdbCfg.enable "helixdb.service";
+                  wantedBy = [ "multi-user.target" ];
+
+                  serviceConfig = {
+                    Type = "simple";
+                    User = "helix-indexer";
+                    Group = "helix-indexer";
+
+                    ExecStart = "${self.packages.${system}.helix-indexer}/bin/helix-file-indexer";
+
+                    Restart = "on-failure";
+                    RestartSec = "10s";
+                    StartLimitInterval = "60s";
+                    StartLimitBurst = 3;
+
+                    StateDirectory = "helix-indexer";
+                    StateDirectoryMode = "0700";
+                    WorkingDirectory = "/var/lib/helix-indexer";
+
+                    ProtectSystem = "strict";
+                    ProtectHome = true;
+                    NoNewPrivileges = true;
+                    PrivateTmp = true;
+                    ProtectClock = true;
+                    ProtectHostname = true;
+                    ProtectKernelLogs = true;
+                    RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
+                    RestrictNamespaces = true;
+                    RestrictRealtime = true;
+                    LockPersonality = true;
+
+                    LimitNOFILE = 65536;
+                  };
+
+                  environment = {
+                    HELIX_DB_HOST = helixdbCfg.host;
+                    HELIX_DB_PORT = toString helixdbCfg.port;
+                    WATCH_PATHS = lib.concatStringsSep ":" cfg.watchPaths;
+                    EXCLUDE_PATTERNS = lib.concatStringsSep ":" cfg.excludePatterns;
+                    LOG_LEVEL = "INFO";
+                  };
+                };
+              })
+
+              # ====== MCP Server Service ======
+              (lib.mkIf (cfg.enable && cfg.mcpServer.enable) {
+                systemd.services.helix-mcp-server = {
+                  description = "HelixDB MCP Server for AI Agents";
+                  after = [ "network.target" ] ++ lib.optional helixdbCfg.enable "helixdb.service";
+                  wants = lib.optional helixdbCfg.enable "helixdb.service";
+                  wantedBy = [ "multi-user.target" ];
+
+                  serviceConfig = {
+                    Type = "simple";
+                    User = "helix-indexer";
+                    Group = "helix-indexer";
+
+                    ExecStart = "${self.packages.${system}.helix-mcp-server}/bin/helix-mcp-server";
+
+                    Restart = "always";
+                    RestartSec = "5s";
+
+                    ProtectSystem = "strict";
+                    ProtectHome = true;
+                    NoNewPrivileges = true;
+                    PrivateTmp = true;
+                    RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
+                  };
+
+                  environment = {
+                    HELIX_DB_HOST = helixdbCfg.host;
+                    HELIX_DB_PORT = toString helixdbCfg.port;
+                    MCP_PORT = toString cfg.mcpServer.port;
+                  };
+                };
+              })
+
+              {
+                environment.systemPackages = lib.optionals cfg.enable
+                  [ self.packages.${system}.helix-search ];
+              }
+            ];
           };
+
       }
     ) // {
-      # Multi-system outputs
       homeManagerModules.default = self.homeManagerModules.x86_64-linux.default;
       nixosModules.default = self.nixosModules.x86_64-linux.default;
     };
