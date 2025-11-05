@@ -499,7 +499,7 @@
 
       }
     ) // {
-      homeManagerModules.default = self.homeManagerModules.x86_64-linux.default;
-      nixosModules.default = self.nixosModules.x86_64-linux.default;
+      # homeManagerModules.default = self.homeManagerModules.x86_64-linux.default;
+      # nixosModules.default = self.nixosModules.x86_64-linux.default;
     };
 }
