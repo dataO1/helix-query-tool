@@ -32,46 +32,25 @@
 
         # ============================================================
         # HelixDB Python Package - uses hatchling build backend
-        # Modern approach: declare all optional dependencies to satisfy check
-        #
-        # Analysis of helix-py optional extras:
-        # - anthropic, openai, voyageai, google-genai: LLM/embedding providers (NOT needed)
-        # - chonkie: text chunking (NOT needed - HelixDB does this)
-        # - numpy, pyarrow: data processing (NOT needed - for Loader class)
-        # - markitdown: markdown conversion (NOT needed)
-        # - fastmcp: MCP framework (NOT needed - using built-in MCP)
-        # - tqdm: progress bars (OPTIONAL - nice to have)
-        # - python-dotenv: env vars (OPTIONAL - nice to have)
-        #
-        # Solution: Include tqdm and python-dotenv as they're lightweight and useful,
-        # skip the heavier ones (LLM deps, numpy, pyarrow)
         # ============================================================
         helix-py-pkg = pkgs.python3.pkgs.buildPythonPackage {
           pname = "helix-py";
           version = "0.2.30";
           src = helix-py-src;
 
-          # Uses hatchling build backend as per pyproject.toml
           pyproject = true;
           build-system = [ pkgs.python3.pkgs.hatchling ];
 
-          # All runtime dependencies: core + useful optional extras
           propagatedBuildInputs = with pkgs.python3.pkgs; [
-            # Core dependencies
             requests
             pydantic
             httpx
-            # Lightweight optional extras
-            tqdm           # Progress bars for batch operations
-            python-dotenv  # Environment variable loading for config
+            tqdm
+            python-dotenv
           ];
 
-          # Disable tests (not needed for packaging)
           doCheck = false;
           dontCheckRuntimeDeps = true;
-
-          # For packages with many optional dependencies, override the check
-          # This tells Nix to skip the pythonRuntimeDepsCheck hook
           dontUsePythonImportsCheck = true;
 
           meta = with pkgs.lib; {
@@ -92,12 +71,13 @@
 
         # ============================================================
         # Real HelixDB Rust Package from source
+        # FIX: Do NOT use --release flag with buildRustPackage
+        # Nix handles release/debug mode automatically via cargoTestType
         # ============================================================
         helixdb = pkgs.rustPlatform.buildRustPackage rec {
           pname = "helix-db";
           version = "2.0.5";
 
-          # Use the helix-db source input directly
           src = helix-db-src;
 
           cargoLock = {
@@ -112,10 +92,10 @@
             openssl
           ];
 
-          cargoBuildFlags = [ "--release" ];
+          # REMOVED: cargoBuildFlags = [ "--release" ];
+          # buildRustPackage already builds in release mode by default
           doCheck = false;
 
-          # The binary might be named differently, adjust if needed
           postInstall = ''
             mkdir -p $out/bin
             if [ -f target/release/helix-db ]; then
@@ -224,7 +204,6 @@
               programs.zsh.shellAliases = cfg.aliases;
               programs.fish.shellAliases = cfg.aliases;
 
-              # User configuration file
               xdg.configFile."helix-search/config.yaml".text = ''
                 helix_db:
                   host: "localhost"
@@ -356,7 +335,7 @@
 
                     Restart = "always";
                     RestartSec = "10s";
-                    StartLimitInterval = "60s";
+                    StartLimitIntervalSec = 60;
                     StartLimitBurst = 5;
 
                     StateDirectory = "helix-db";
@@ -425,7 +404,7 @@
 
                     Restart = "on-failure";
                     RestartSec = "10s";
-                    StartLimitInterval = "60s";
+                    StartLimitIntervalSec = 60;
                     StartLimitBurst = 3;
 
                     StateDirectory = "helix-indexer";
@@ -499,7 +478,7 @@
 
       }
     ) // {
-      # homeManagerModules.default = self.homeManagerModules.x86_64-linux.default;
-      # nixosModules.default = self.nixosModules.x86_64-linux.default;
+      homeManagerModules.default = self.homeManagerModules.x86_64-linux.default;
+      nixosModules.default = self.nixosModules.x86_64-linux.default;
     };
 }
