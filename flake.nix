@@ -157,25 +157,43 @@
 
         # ============================================================
         # HelixDB Indexer Service Script (Uses built-in chunking)
+        # Uses pythonEnv to ensure all dependencies are available
         # ============================================================
         helixIndexerScript = pkgs.writeScriptBin "helix-file-indexer" ''
           #!${pythonEnv}/bin/python3
+          
+          # Ensure the python environment has all dependencies
+          import sys
+          sys.path.insert(0, '${pythonEnv}/${pythonEnv.python.sitePackages}')
+          
           ${builtins.readFile ./src/helix_indexer.py}
         '';
 
         # ============================================================
         # CLI Search Tool (Real backend connection)
+        # Uses pythonEnv to ensure all dependencies are available
         # ============================================================
         helixSearchTool = pkgs.writeScriptBin "helix-search" ''
           #!${pythonEnv}/bin/python3
+          
+          # Ensure the python environment has all dependencies
+          import sys
+          sys.path.insert(0, '${pythonEnv}/${pythonEnv.python.sitePackages}')
+          
           ${builtins.readFile ./src/helix_search.py}
         '';
 
         # ============================================================
         # MCP Server Script
+        # Uses pythonEnv to ensure all dependencies are available
         # ============================================================
         helixMcpServer = pkgs.writeScriptBin "helix-mcp-server" ''
           #!${pythonEnv}/bin/python3
+          
+          # Ensure the python environment has all dependencies
+          import sys
+          sys.path.insert(0, '${pythonEnv}/${pythonEnv.python.sitePackages}')
+          
           ${builtins.readFile ./src/helix_mcp_server.py}
         '';
 
@@ -416,7 +434,10 @@
 
               # ====== File Indexer Service ======
               (lib.mkIf cfg.enable {
-                environment.systemPackages = [ self.packages.${system}.helix-search ];
+                environment.systemPackages = [ 
+                  self.packages.${system}.helix-search
+                  self.packages.${system}.helix-indexer
+                ];
 
                 users.users.helix-indexer = {
                   description = "HelixDB File Indexer user";
@@ -482,6 +503,10 @@
 
               # ====== MCP Server Service ======
               (lib.mkIf (cfg.enable && cfg.mcpServer.enable) {
+                environment.systemPackages = [ 
+                  self.packages.${system}.helix-mcp-server
+                ];
+
                 systemd.services.helix-mcp-server = {
                   description = "HelixDB MCP Server for AI Agents";
                   after = [ "network.target" ] ++ lib.optional helixdbCfg.enable "helixdb.service";
