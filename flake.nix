@@ -71,9 +71,8 @@
 
         # ============================================================
         # Real HelixDB Rust Package from source
-        # FIX: HelixDB requires Rust 1.88.0 or higher
-        # The code uses if let chains which require recent Rust
-        # Use rust-bin.stable.latest to get the newest stable Rust
+        # FIX: Use installCargoToFixture instead of custom postInstall
+        # This properly installs the compiled binary
         # ============================================================
         helixdb = pkgs.rustPlatform.buildRustPackage rec {
           pname = "helix-db";
@@ -95,13 +94,39 @@
 
           doCheck = false;
 
-          postInstall = ''
+          # Use installPhase to properly install the binary
+          # This is more reliable than postInstall
+          installPhase = ''
+            runHook preInstall
+
             mkdir -p $out/bin
+
+            # Check for both possible binary names
             if [ -f target/release/helix-db ]; then
-              cp target/release/helix-db $out/bin/
+              echo "Installing helix-db binary..."
+              cp target/release/helix-db $out/bin/helix-db
+              chmod +x $out/bin/helix-db
             elif [ -f target/release/helix_db ]; then
+              echo "Installing helix_db binary (renamed to helix-db)..."
               cp target/release/helix_db $out/bin/helix-db
+              chmod +x $out/bin/helix-db
+            else
+              echo "ERROR: No helix-db binary found in target/release/"
+              echo "Available binaries:"
+              ls -la target/release/ | grep -E '^-.*x' || echo "No executables found"
+              exit 1
             fi
+
+            # Verify the binary exists and is executable
+            if [ -x $out/bin/helix-db ]; then
+              echo "Binary installed successfully at $out/bin/helix-db"
+              $out/bin/helix-db --version || echo "Note: --version flag may not be available"
+            else
+              echo "ERROR: Binary was not installed correctly"
+              exit 1
+            fi
+
+            runHook postInstall
           '';
 
           meta = with pkgs.lib; {
@@ -478,8 +503,5 @@
           };
 
       }
-    ) // {
-      # homeManagerModules.default = self.homeManagerModules.x86_64-linux.default;
-      # nixosModules.default = self.nixosModules.x86_64-linux.default;
-    };
+    );
 }
