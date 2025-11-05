@@ -71,8 +71,11 @@
 
         # ============================================================
         # Real HelixDB Rust Package from source
-        # FIX: Use installCargoToFixture instead of custom postInstall
-        # This properly installs the compiled binary
+        # Build helix-container which is the actual database server
+        # The workspace structure is:
+        # - helix-db (library) - core database engine
+        # - helix-container (binary) - server wrapping helix-db
+        # - helix-cli (binary) - CLI tool for management
         # ============================================================
         helixdb = pkgs.rustPlatform.buildRustPackage rec {
           pname = "helix-db";
@@ -94,35 +97,50 @@
 
           doCheck = false;
 
-          # Use installPhase to properly install the binary
-          # This is more reliable than postInstall
+          # Build the helix-container binary which is the database server
+          cargoBuildFlags = [ "--bin" "helix-container" "-p" "helix-container" ];
+
+          # Install phase that handles cargo's target directory structure correctly
+          # buildRustPackage uses --target which places binaries in target/$CARGO_BUILD_TARGET/release/
           installPhase = ''
             runHook preInstall
-
             mkdir -p $out/bin
 
-            # Check for both possible binary names
-            if [ -f target/release/helix-db ]; then
-              echo "Installing helix-db binary..."
-              cp target/release/helix-db $out/bin/helix-db
-              chmod +x $out/bin/helix-db
-            elif [ -f target/release/helix_db ]; then
-              echo "Installing helix_db binary (renamed to helix-db)..."
-              cp target/release/helix_db $out/bin/helix-db
-              chmod +x $out/bin/helix-db
-            else
-              echo "ERROR: No helix-db binary found in target/release/"
-              echo "Available binaries:"
-              ls -la target/release/ | grep -E '^-.*x' || echo "No executables found"
-              exit 1
+            # When cargo is invoked with --target, it places binaries in target/$TARGET/release/
+            # The CARGO_BUILD_TARGET is passed by buildRustPackage during the build
+            TARGET_DIR="target/x86_64-unknown-linux-gnu/release"
+            
+            # Fallback to target/release if the target-specific directory doesn't exist
+            if [ ! -d "$TARGET_DIR" ]; then
+              TARGET_DIR="target/release"
             fi
 
-            # Verify the binary exists and is executable
-            if [ -x $out/bin/helix-db ]; then
-              echo "Binary installed successfully at $out/bin/helix-db"
-              $out/bin/helix-db --version || echo "Note: --version flag may not be available"
+            BIN_PATH="$TARGET_DIR/helix-container"
+
+            if [ -f "$BIN_PATH" ]; then
+              echo "Installing helix-container binary from $BIN_PATH..."
+              cp "$BIN_PATH" "$out/bin/helix-db"
+              chmod +x "$out/bin/helix-db"
+              echo "✓ Binary installed successfully at $out/bin/helix-db"
+              file "$out/bin/helix-db"
             else
-              echo "ERROR: Binary was not installed correctly"
+              echo "ERROR: helix-container binary not found"
+              echo ""
+              echo "Expected path: $BIN_PATH"
+              echo ""
+              echo "Checking target/x86_64-unknown-linux-gnu/release:"
+              if [ -d "target/x86_64-unknown-linux-gnu/release" ]; then
+                ls -la target/x86_64-unknown-linux-gnu/release | head -50
+              else
+                echo "  (directory does not exist)"
+              fi
+              echo ""
+              echo "Checking target/release:"
+              if [ -d "target/release" ]; then
+                ls -la target/release | head -50
+              else
+                echo "  (directory does not exist)"
+              fi
               exit 1
             fi
 
