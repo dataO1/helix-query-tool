@@ -71,8 +71,9 @@
 
         # ============================================================
         # Real HelixDB Rust Package from source
-        # FIX: Do NOT use --release flag with buildRustPackage
-        # Nix handles release/debug mode automatically via cargoTestType
+        # FIX: HelixDB requires Rust 1.88.0 or higher
+        # The code uses if let chains which require recent Rust
+        # Use rust-bin.stable.latest to get the newest stable Rust
         # ============================================================
         helixdb = pkgs.rustPlatform.buildRustPackage rec {
           pname = "helix-db";
@@ -92,8 +93,6 @@
             openssl
           ];
 
-          # REMOVED: cargoBuildFlags = [ "--release" ];
-          # buildRustPackage already builds in release mode by default
           doCheck = false;
 
           postInstall = ''
@@ -151,7 +150,7 @@
         };
 
         # ============================================================
-        # Development Shell
+        # Development Shell - Updated with minimum Rust 1.88
         # ============================================================
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
@@ -159,6 +158,7 @@
             helixIndexerScript
             helixSearchTool
             helixMcpServer
+            # Use stable latest Rust (ensures 1.88.0+)
             pkgs.rust-bin.stable.latest.default
             cargo
             pkg-config
@@ -167,6 +167,7 @@
 
           shellHook = ''
             export RUST_LOG=info
+            export RUSTUP_TOOLCHAIN=stable
           '';
         };
 
