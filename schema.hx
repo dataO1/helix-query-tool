@@ -1,8 +1,7 @@
-// Flexible document schema for file indexing
-N::Document {
+V::Document {
   INDEX filepath: String,
-  content: String,
+  metadata: String,
   filetype: String,
-  metadata: Json,
+  content: String,
   created_at: Date DEFAULT NOW
 }
