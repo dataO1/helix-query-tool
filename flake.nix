@@ -36,49 +36,7 @@
         lib = pkgs.lib;
 
         # ============================================================
-        # Build voyageai from PyPI (not available in nixpkgs)
-        # Required by helix-py for semantic chunking
-        # ============================================================
-        voyageai-pkg = pkgs.python3.pkgs.buildPythonPackage {
-          pname = "voyageai";
-          version = "0.3.5";
-          format = "pyproject";
-          src = pkgs.fetchPypi {
-            pname = "voyageai";
-            version = "0.3.5";
-            sha256 = "sha256-lj4NcWEa9Sn6DkltsjKk9mC19zvOevGrKIp/Wd91Eto=";
-          };
-
-          nativeBuildInputs = with pkgs.python3.pkgs; [
-            setuptools
-            wheel
-            poetry-core
-            aiohttp
-            aiolimiter
-            langchain-text-splitters
-            numpy
-            pillow
-            pydantic
-            requests
-            tenacity
-            tokenizers
-          ];
-
-          propagatedBuildInputs = with pkgs.python3.pkgs; [
-          ];
-
-          doCheck = false;
-
-          meta = with pkgs.lib; {
-            description = "Voyage AI provides cutting-edge embedding and rerankers.";
-            homepage = "https://pypi.org/project/voyageai/";
-            license = licenses.mit;
-          };
-        };
-
-        # ============================================================
-        # Build chonkie from PyPI (not available in nixpkgs)
-        # Required by helix-py for semantic chunking
+        # Build chonkie from PyPI
         # ============================================================
         chonkie-pkg = pkgs.python3.pkgs.buildPythonPackage {
           pname = "chonkie";
@@ -91,18 +49,11 @@
           };
 
           nativeBuildInputs = with pkgs.python3.pkgs; [
-            setuptools
-            wheel
-            tokenizers
-            cython
-            numpy
-            loguru
+            setuptools wheel tokenizers cython numpy loguru
           ];
 
           propagatedBuildInputs = with pkgs.python3.pkgs; [
-            regex
-            tiktoken
-            nltk
+            regex tiktoken nltk
           ];
 
           doCheck = false;
@@ -115,8 +66,7 @@
         };
 
         # ============================================================
-        # Build google-genai from GitHub using hatchling backend
-        # For Gemini embeddings and generative AI features
+        # Build google-genai from GitHub
         # ============================================================
         google-genai-pkg = pkgs.python3.pkgs.buildPythonPackage {
           pname = "google-genai";
@@ -125,36 +75,26 @@
           src = google-genai-src;
 
           nativeBuildInputs = with pkgs.python3.pkgs; [
-            hatchling
-            hatch-fancy-pypi-readme
-            setuptools
-            pkginfo
-            twine
-            tenacity
-            websockets
+            hatchling hatch-fancy-pypi-readme setuptools pkginfo tenacity
+            websockets twine
           ];
 
           propagatedBuildInputs = with pkgs.python3.pkgs; [
-            httpx
-            google-api-core
-            google-auth
-            pydantic
-            typing-extensions
+            httpx google-api-core google-auth pydantic typing-extensions setuptools
           ];
 
           doCheck = false;
           dontUsePythonImportsCheck = true;
 
           meta = with pkgs.lib; {
-            description = "Google Gen AI Python SDK - Official replacement for google-generativeai";
+            description = "Google Gen AI Python SDK";
             homepage = "https://github.com/googleapis/python-genai";
             license = licenses.asl20;
           };
         };
 
         # ============================================================
-        # Build helix-py properly from source
-        # Using hatchling backend as specified in pyproject.toml
+        # Build helix-py from source
         # ============================================================
         helix-py-pkg = pkgs.python3.pkgs.buildPythonPackage {
           pname = "helix-py";
@@ -162,22 +102,11 @@
           src = helix-py-src;
           pyproject = true;
 
-          nativeBuildInputs = with pkgs.python3.pkgs; [
-            hatchling
-          ];
+          nativeBuildInputs = with pkgs.python3.pkgs; [ hatchling setuptools ];
 
           propagatedBuildInputs = with pkgs.python3.pkgs; [
-            # Core dependencies
-            requests
-            pydantic
-            httpx
-            tqdm
-            python-dotenv
-            # Optional dependencies for enhanced functionality
-            numpy
-            pyarrow
-            chonkie-pkg
-            google-genai-pkg
+            requests pydantic httpx tqdm python-dotenv numpy pyarrow
+            chonkie-pkg google-genai-pkg setuptools
           ];
 
           dontCheckRuntimeDeps = true;
@@ -191,42 +120,16 @@
         };
 
         # ============================================================
-        # Python environment with helix-py and all dependencies
+        # Python environment for tools
         # ============================================================
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-          helix-py-pkg
-          pyinotify
-          requests
-          pyyaml
-          watchdog
-          tqdm
-          python-dotenv
-          numpy
-          pyarrow
-          chonkie-pkg
-          loguru
-          markitdown
-          tokenizers
-          fastmcp
-          google-genai-pkg
-          google-api-core
-          google-auth
-          tenacity
-          voyageai-pkg
-          langchain-text-splitters
-          aiohttp
-          aiolimiter
-          langchain-text-splitters
-          numpy
-          pillow
-          pydantic
-          requests
-          tenacity
-          tokenizers
+          helix-py-pkg pyinotify requests pyyaml watchdog tqdm python-dotenv
+          numpy pyarrow chonkie-pkg loguru markitdown tokenizers fastmcp
+          google-genai-pkg google-api-core google-auth
         ]);
 
         # ============================================================
-        # Helix Indexer Package - bundles src/helix_indexer.py
+        # Helix Indexer Package
         # ============================================================
         helix-indexer-pkg = pkgs.runCommand "helix-indexer" {} ''
           mkdir -p $out/bin
@@ -238,7 +141,7 @@
         '';
 
         # ============================================================
-        # Helix MCP Server Package - bundles src/helix_mcp_server.py
+        # Helix MCP Server Package
         # ============================================================
         helix-mcp-server-pkg = pkgs.runCommand "helix-mcp-server" {} ''
           mkdir -p $out/bin
@@ -250,7 +153,7 @@
         '';
 
         # ============================================================
-        # Helix Search Tool Package - bundles src/helix_search.py
+        # Helix Search Tool Package
         # ============================================================
         helix-search-tool-pkg = pkgs.runCommand "helix-search-tool" {} ''
           mkdir -p $out/bin
@@ -262,11 +165,10 @@
         '';
 
         # ============================================================
-        # Real HelixDB Rust Package from source
-        # Build helix-container which is the actual database server
+        # Build Helix CLI from source
         # ============================================================
-        helixdb = pkgs.rustPlatform.buildRustPackage rec {
-          pname = "helix-db";
+        helix-cli = pkgs.rustPlatform.buildRustPackage rec {
+          pname = "helix-cli";
           version = "2.0.5";
 
           src = helix-db-src;
@@ -275,13 +177,61 @@
             lockFile = "${helix-db-src}/Cargo.lock";
           };
 
-          nativeBuildInputs = with pkgs; [
-            pkg-config
-          ];
+          nativeBuildInputs = with pkgs; [ pkg-config ];
+          buildInputs = with pkgs; [ openssl  ];
 
-          buildInputs = with pkgs; [
-            openssl
-          ];
+          doCheck = false;
+
+          # Build the helix CLI binary (not helix-container)
+          cargoBuildFlags = [ "--bin" "helix" "-p" "helix-cli" ];
+
+          installPhase = ''
+            runHook preInstall
+            mkdir -p $out/bin
+
+            TARGET_DIR="target/x86_64-unknown-linux-gnu/release"
+            if [ ! -d "$TARGET_DIR" ]; then
+              TARGET_DIR="target/release"
+            fi
+
+            BIN_PATH="$TARGET_DIR/helix"
+
+            if [ -f "$BIN_PATH" ]; then
+              echo "Installing helix CLI binary..."
+              cp "$BIN_PATH" "$out/bin/helix"
+              chmod +x "$out/bin/helix"
+              echo "✓ Helix CLI installed successfully"
+            else
+              echo "ERROR: helix CLI binary not found at $BIN_PATH"
+              exit 1
+            fi
+
+            runHook postInstall
+          '';
+
+          meta = with pkgs.lib; {
+            description = "HelixDB CLI tool for project management";
+            homepage = "https://github.com/HelixDB/helix-db";
+            license = licenses.asl20;
+            platforms = platforms.unix;
+          };
+        };
+
+        # ============================================================
+        # HelixDB Runtime Binary (helix-container)
+        # ============================================================
+        helixdb-runtime = pkgs.rustPlatform.buildRustPackage rec {
+          pname = "helix-db-runtime";
+          version = "2.0.5";
+
+          src = helix-db-src;
+
+          cargoLock = {
+            lockFile = "${helix-db-src}/Cargo.lock";
+          };
+
+          nativeBuildInputs = with pkgs; [ pkg-config  setuptools];
+          buildInputs = with pkgs; [ openssl  setuptools];
 
           doCheck = false;
 
@@ -299,12 +249,11 @@
             BIN_PATH="$TARGET_DIR/helix-container"
 
             if [ -f "$BIN_PATH" ]; then
-              echo "Installing helix-container binary from $BIN_PATH..."
-              cp "$BIN_PATH" "$out/bin/helix-db"
-              chmod +x "$out/bin/helix-db"
-              echo "✓ Binary installed successfully"
+              cp "$BIN_PATH" "$out/bin/helix-container"
+              chmod +x "$out/bin/helix-container"
+              echo "✓ HelixDB runtime installed"
             else
-              echo "ERROR: helix-container binary not found at $BIN_PATH"
+              echo "ERROR: helix-container not found"
               exit 1
             fi
 
@@ -312,28 +261,106 @@
           '';
 
           meta = with pkgs.lib; {
-            description = "HelixDB - Open-source Graph-Vector Database";
+            description = "HelixDB runtime container";
             homepage = "https://github.com/HelixDB/helix-db";
             license = licenses.asl20;
             platforms = platforms.unix;
           };
         };
 
+        # ============================================================
+        # Build HelixDB Project (declarative initialization)
+        # Combines base queries + optional extra queries
+        # ============================================================
+        helixdb-project = pkgs.runCommand "helixdb-project" {
+          buildInputs = [ helix-cli pkgs.coreutils ];
+        } ''
+          # Create reproducible project directory
+          mkdir -p $out/project
+          cd $out/project
+
+          # Create helix.toml configuration
+          cat > helix.toml << 'TOML'
+          [project]
+          name = "helix-indexer"
+          version = "1.0.0"
+
+          [instances.prod]
+          build_mode = "release"
+          mcp = true
+          bm25 = true
+          embedding_model = "text-embedding-ada-002"
+          db_max_size_gb = 10
+
+          [instances.prod.vector]
+          m = 16
+          ef_construction = 128
+          ef_search = 768
+          TOML
+
+          # Create schema.hx (minimal schema for flexible indexing)
+          cat > schema.hx << 'HX'
+          // Flexible document schema for file indexing
+          N::Document {
+            INDEX filepath: String,
+            content: String,
+            filetype: String,
+            metadata: Json,
+            created_at: Date DEFAULT NOW
+          }
+          HX
+
+          # Create combined queries file
+          mkdir -p queries
+          cat > queries/queries.hx << 'HX'
+          ${builtins.readFile ./queries.hx}
+
+          ${lib.optionalString (builtins.pathExists ./extra-queries.hx) ''
+            ${builtins.readFile ./extra-queries.hx}
+          ''}
+          HX
+
+          # Validate project
+          echo "Validating HelixDB project..."
+          ${helix-cli}/bin/helix check prod
+
+          echo "✓ HelixDB project initialized at $out/project"
+        '';
+
+        # ============================================================
+        # Initialize HelixDB Data Directory
+        # Run helix build to prepare the instance
+        # ============================================================
+        helixdb-initialized = pkgs.runCommand "helixdb-initialized" {
+          buildInputs = [ helix-cli pkgs.docker pkgs.coreutils ];
+          preferLocalBuild = true;
+          allowSubstitutes = false;
+        } ''
+          mkdir -p $out/data
+          cd ${helixdb-project}/project
+
+          echo "Building HelixDB instance..."
+          ${helix-cli}/bin/helix build prod --output-dir $out/data
+
+          echo "✓ HelixDB instance built at $out/data"
+        '';
+
       in {
         # ============================================================
         # Packages
         # ============================================================
         packages = {
-          helixdb = helixdb;
+          helix-cli = helix-cli;
+          helixdb-runtime = helixdb-runtime;
+          helixdb-project = helixdb-project;
           helix-py = helix-py-pkg;
           chonkie = chonkie-pkg;
-          voyageai = voyageai-pkg;
           google-genai = google-genai-pkg;
           python-env = pythonEnv;
           helix-indexer = helix-indexer-pkg;
           helix-mcp-server = helix-mcp-server-pkg;
           helix-search = helix-search-tool-pkg;
-          default = helixdb;
+          default = helix-cli;
         };
 
         # ============================================================
@@ -341,15 +368,8 @@
         # ============================================================
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
-            pythonEnv
-            pkgs.rust-bin.stable.latest.default
-            cargo
-            pkg-config
-            openssl
-            helix-mcp-server-pkg
-            helix-indexer-pkg
-            helix-search-tool-pkg
-            ffmpeg
+            pythonEnv rust-bin.stable.latest.default cargo pkg-config openssl
+            helix-cli docker helix-mcp-server-pkg helix-indexer-pkg helix-search-tool-pkg
           ];
 
           shellHook = ''
@@ -359,63 +379,16 @@
         };
 
         # ============================================================
-        # Home-Manager Module
-        # ============================================================
-        homeManagerModules.default = { config, lib, pkgs, ... }:
-          let
-            cfg = config.services.helix-search;
-          in {
-            options.services.helix-search = {
-              enable = lib.mkEnableOption "HelixDB search CLI integration";
-
-              aliases = lib.mkOption {
-                type = lib.types.attrsOf lib.types.str;
-                default = {
-                  "hs" = "helix-search";
-                  "hsf" = "helix-search --files";
-                  "hsc" = "helix-search --code-only";
-                };
-                description = "Shell aliases for search commands";
-              };
-            };
-
-            config = lib.mkIf cfg.enable {
-              home.packages = [ self.packages.${system}.helix-search pkgs.ffmpeg ];
-              programs.bash.shellAliases = cfg.aliases;
-              programs.zsh.shellAliases = cfg.aliases;
-              programs.fish.shellAliases = cfg.aliases;
-            };
-          };
-
-        # ============================================================
         # NixOS Module
         # ============================================================
         nixosModules.default = { config, lib, pkgs, ... }:
           let
-            cfg = config.services.helix-indexer;
-            helixdbCfg = config.services.helixdb;
+            cfg = config.services.helixdb;
+            indexerCfg = config.services.helix-indexer;
 
-           # Path to base queries file in repo
-            baseQueriesPath = ./queries.hx;
-
-            # Combine base queries with optional extra queries
-            combinedQueriesFile = pkgs.runCommand "combined-queries.hx" {
-              buildInputs = [ pkgs.coreutils ];
-            } ''
-              # Always start with base queries
-              cat ${baseQueriesPath} > $out
-
-              # If extra queries file is provided, append it
-              ${lib.optionalString (helixdbCfg.extraQueriesFile != null) ''
-                cat ${helixdbCfg.extraQueriesFile} >> $out
-              ''}
-            '';
-
-            # Runtime config directory for HelixDB
-            helixdbConfigDir = "/etc/helixdb";
           in {
             options.services.helixdb = {
-              enable = lib.mkEnableOption "HelixDB vector-graph database service";
+              enable = lib.mkEnableOption "HelixDB with CLI management";
 
               host = lib.mkOption {
                 type = lib.types.str;
@@ -435,72 +408,45 @@
                 description = "Data directory for HelixDB persistence";
               };
 
-              logLevel = lib.mkOption {
-                type = lib.types.enum [ "debug" "info" "warn" "error" ];
-                default = "info";
-                description = "Log level for HelixDB";
-              };
-
               openFirewall = lib.mkOption {
                 type = lib.types.bool;
                 default = false;
                 description = "Open firewall port for HelixDB";
               };
-
-              extraQueriesFile = lib.mkOption {
-                type = lib.types.nullOr lib.types.path;
-                default = null;
-                description = "Optional extra HelixQL queries file to merge at build time";
-              };
             };
 
             options.services.helix-indexer = {
-              enable = lib.mkEnableOption "HelixDB automatic file indexing service";
+              enable = lib.mkEnableOption "HelixDB file indexer service";
 
               watchPaths = lib.mkOption {
                 type = lib.types.listOf lib.types.str;
                 default = [ "/home" "/etc/nixos" ];
-                description = "Paths to monitor for file changes";
+                description = "Paths to monitor";
               };
 
               excludePatterns = lib.mkOption {
                 type = lib.types.listOf lib.types.str;
-                default = [ "*.swp" "*.tmp" "*~" ".git/*" "node_modules/*" ".nix-*" ];
-                description = "File patterns to exclude from indexing";
-              };
-
-              mcpServer = {
-                enable = lib.mkOption {
-                  type = lib.types.bool;
-                  default = false;
-                  description = "Enable MCP server for AI agent integration";
-                };
-
-                port = lib.mkOption {
-                  type = lib.types.port;
-                  default = 8000;
-                  description = "MCP server port";
-                };
+                default = [ "*.swp" "*.tmp" "*~" ".git/*" "node_modules/*" ];
+                description = "Patterns to exclude";
               };
             };
 
             config = lib.mkMerge [
-              (lib.mkIf helixdbCfg.enable {
-                environment.systemPackages = [ self.packages.${system}.helixdb ];
-
-              systemd.tmpfiles.rules = [
-                "d ${helixdbConfigDir} 0755 helixdb helixdb"
-                "C ${helixdbConfigDir}/queries.hx 0644 helixdb helixdb - ${combinedQueriesFile}" ];
+              (lib.mkIf cfg.enable {
+                environment.systemPackages = [
+                  self.packages.${system}.helix-cli
+                  self.packages.${system}.helixdb-runtime
+                ];
 
                 users.users.helixdb = {
                   isSystemUser = true;
                   group = "helixdb";
-                  home = helixdbCfg.dataDir;
+                  home = cfg.dataDir;
                 };
                 users.groups.helixdb = {};
 
                 systemd.services.helixdb = {
-                  description = "HelixDB Graph-Vector Database";
+                  description = "HelixDB via CLI (prod instance)";
                   after = [ "network.target" ];
                   wantedBy = [ "multi-user.target" ];
 
@@ -510,56 +456,40 @@
                     Group = "helixdb";
 
                     ExecStart = ''
-                      ${self.packages.${system}.helixdb}/bin/helix-db \
-                        # --host ${helixdbCfg.host} \
-                        # --port ${toString helixdbCfg.port} \
-                        # --data ${helixdbCfg.dataDir} \
-                        # --log-level ${helixdbCfg.logLevel} \
-                        --queries-path ${helixdbConfigDir}/queries.hx
+                      ${self.packages.${system}.helix-cli}/bin/helix start prod \
+                        --host ${cfg.host} \
+                        --port ${toString cfg.port} \
+                        --data-dir ${cfg.dataDir}
                     '';
 
                     Restart = "always";
                     RestartSec = "10s";
-                    StartLimitIntervalSec = 60;
+                    StartLimitInterval = 60;
                     StartLimitBurst = 5;
 
                     StateDirectory = "helix-db";
                     StateDirectoryMode = "0700";
-                    WorkingDirectory = helixdbCfg.dataDir;
+                    WorkingDirectory = cfg.dataDir;
 
                     ProtectSystem = "strict";
                     ProtectHome = true;
                     NoNewPrivileges = true;
-                    PrivateTmp = true;
-                    ProtectClock = true;
-                    ProtectHostname = true;
-                    ProtectKernelLogs = true;
-                    ProtectKernelTunables = true;
-                    RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
-                    RestrictNamespaces = true;
-                    RestrictRealtime = true;
-                    LockPersonality = true;
-
                     LimitNOFILE = 65536;
-                    LimitNPROC = 512;
                   };
 
                   preStart = ''
-                    mkdir -p ${helixdbCfg.dataDir}
-                    chown helixdb:helixdb ${helixdbCfg.dataDir}
-                    chmod 700 ${helixdbCfg.dataDir}
+                    mkdir -p ${cfg.dataDir}
+                    chown helixdb:helixdb ${cfg.dataDir}
+                    chmod 700 ${cfg.dataDir}
                   '';
                 };
 
                 networking.firewall.allowedTCPPorts =
-                  lib.optionals helixdbCfg.openFirewall [ helixdbCfg.port ];
+                  lib.optionals cfg.openFirewall [ cfg.port ];
               })
 
-              (lib.mkIf cfg.enable {
-                environment.systemPackages = [
-                  self.packages.${system}.helix-indexer
-                  self.packages.${system}.helix-search
-                ];
+              (lib.mkIf indexerCfg.enable {
+                environment.systemPackages = [ self.packages.${system}.helix-indexer ];
 
                 users.users.helix-indexer = {
                   isSystemUser = true;
@@ -568,16 +498,10 @@
                 };
                 users.groups.helix-indexer = {};
 
-                boot.kernel.sysctl = {
-                  "fs.inotify.max_user_watches" = 524288;
-                  "fs.inotify.max_queued_events" = 32768;
-                  "fs.inotify.max_user_instances" = 1024;
-                };
-
                 systemd.services.helix-indexer = {
-                  description = "HelixDB Automatic File Indexer";
-                  after = [ "network.target" ] ++ lib.optional helixdbCfg.enable "helixdb.service";
-                  wants = lib.optional helixdbCfg.enable "helixdb.service";
+                  description = "HelixDB File Indexer";
+                  after = [ "network.target" ] ++ lib.optional cfg.enable "helixdb.service";
+                  wants = lib.optional cfg.enable "helixdb.service";
                   wantedBy = [ "multi-user.target" ];
 
                   serviceConfig = {
@@ -589,84 +513,19 @@
 
                     Restart = "on-failure";
                     RestartSec = "10s";
-                    StartLimitIntervalSec = 60;
-                    StartLimitBurst = 3;
 
                     StateDirectory = "helix-indexer";
                     StateDirectoryMode = "0700";
                     WorkingDirectory = "/var/lib/helix-indexer";
-
-                    # Critical: Set PYTHONPATH so Python can find all packages
-                    Environment = [
-                      "PYTHONPATH=${pkgs.lib.makeBinPath [ self.packages.${system}.python-env ]}"
-                      "PATH=${self.packages.${system}.python-env}/bin:${pkgs.lib.makeBinPath [ pkgs.coreutils ]}"
-                    ];
-
-                    ProtectSystem = "strict";
-                    ProtectHome = true;
-                    NoNewPrivileges = true;
-                    PrivateTmp = true;
-                    ProtectClock = true;
-                    ProtectHostname = true;
-                    ProtectKernelLogs = true;
-                    RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
-                    RestrictNamespaces = true;
-                    RestrictRealtime = true;
-                    LockPersonality = true;
 
                     LimitNOFILE = 65536;
                   };
 
                   environment = {
-                    HELIX_DB_HOST = helixdbCfg.host;
-                    HELIX_DB_PORT = toString helixdbCfg.port;
-                    WATCH_PATHS = lib.concatStringsSep ":" cfg.watchPaths;
-                    EXCLUDE_PATTERNS = lib.concatStringsSep ":" cfg.excludePatterns;
-                    LOG_LEVEL = "INFO";
-                  };
-                };
-              })
-
-              (lib.mkIf (cfg.enable && cfg.mcpServer.enable) {
-                environment.systemPackages = [ self.packages.${system}.helix-mcp-server ];
-
-                systemd.services.helix-mcp-server = {
-                  description = "HelixDB MCP Server for AI Agents";
-                  after = [ "network.target" ] ++ lib.optional helixdbCfg.enable "helixdb.service";
-                  wants = lib.optional helixdbCfg.enable "helixdb.service";
-                  wantedBy = [ "multi-user.target" ];
-
-                  serviceConfig = {
-                    Type = "simple";
-                    User = "helix-indexer";
-                    Group = "helix-indexer";
-
-                    ExecStart = "${self.packages.${system}.helix-mcp-server}/bin/helix-mcp-server";
-
-                    Restart = "always";
-                    RestartSec = "5s";
-
-                    StateDirectory = "helix-indexer";
-                    StateDirectoryMode = "0700";
-                    WorkingDirectory = "/var/lib/helix-indexer";
-
-                    # Critical: Set PYTHONPATH so Python can find all packages
-                    Environment = [
-                      "PYTHONPATH=${pkgs.lib.makeBinPath [ self.packages.${system}.python-env ]}"
-                      "PATH=${self.packages.${system}.python-env}/bin:${pkgs.lib.makeBinPath [ pkgs.coreutils ]}"
-                    ];
-
-                    ProtectSystem = "strict";
-                    ProtectHome = true;
-                    NoNewPrivileges = true;
-                    PrivateTmp = true;
-                    RestrictAddressFamilies = [ "AF_UNIX" "AF_INET" "AF_INET6" ];
-                  };
-
-                  environment = {
-                    HELIX_DB_HOST = helixdbCfg.host;
-                    HELIX_DB_PORT = toString helixdbCfg.port;
-                    MCP_PORT = toString cfg.mcpServer.port;
+                    HELIX_DB_HOST = cfg.host;
+                    HELIX_DB_PORT = toString cfg.port;
+                    WATCH_PATHS = lib.concatStringsSep ":" indexerCfg.watchPaths;
+                    EXCLUDE_PATTERNS = lib.concatStringsSep ":" indexerCfg.excludePatterns;
                   };
                 };
               })
