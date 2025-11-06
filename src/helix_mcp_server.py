@@ -31,7 +31,7 @@ class HelixMCPServer:
     def __init__(self, config: MCPConfig):
         self.config = config
         try:
-            self.client = Client(host=config.helix_host, port=config.helix_port, local=False)
+            self.client = Client(local=True)
             self.client.is_connected()
             print(f"✅ Connected to HelixDB at {config.helix_host}:{config.helix_port}")
         except Exception as e:

@@ -42,7 +42,7 @@ class HelixIndexer:
     def __init__(self, host: str = "localhost", port: int = 6969):
         try:
             # Connect to HelixDB instance
-            self.client = Client(host=host, port=port, local=False, verbose=True)
+            self.client = Client(local=True)
             logging.info(f"✅ Connected to HelixDB at {host}:{port}")
         except Exception as e:
             logging.error(f"❌ Failed to connect to HelixDB: {e}")
