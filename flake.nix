@@ -409,6 +409,12 @@
                     StateDirectoryMode = "0700";
                     WorkingDirectory = "/var/lib/helix-indexer";
 
+                    # Critical: Set PYTHONPATH so Python can find all packages
+                    Environment = [
+                      "PYTHONPATH=${pkgs.lib.makeBinPath [ self.packages.${system}.python-env ]}"
+                      "PATH=${self.packages.${system}.python-env}/bin:${pkgs.lib.makeBinPath [ pkgs.coreutils ]}"
+                    ];
+
                     ProtectSystem = "strict";
                     ProtectHome = true;
                     NoNewPrivileges = true;
@@ -456,6 +462,12 @@
                     StateDirectory = "helix-indexer";
                     StateDirectoryMode = "0700";
                     WorkingDirectory = "/var/lib/helix-indexer";
+
+                    # Critical: Set PYTHONPATH so Python can find all packages
+                    Environment = [
+                      "PYTHONPATH=${pkgs.lib.makeBinPath [ self.packages.${system}.python-env ]}"
+                      "PATH=${self.packages.${system}.python-env}/bin:${pkgs.lib.makeBinPath [ pkgs.coreutils ]}"
+                    ];
 
                     ProtectSystem = "strict";
                     ProtectHome = true;
