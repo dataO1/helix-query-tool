@@ -519,7 +519,7 @@
                         --port ${toString helixdbCfg.port} \
                         --data ${helixdbCfg.dataDir} \
                         --log-level ${helixdbCfg.logLevel} \
-                        --queries ${helixdb}/etc/helix-db/queries.hx
+                        --queries ${helixdb}/etc/helix-db/queries.hx \
                     '';
 
                     Restart = "always";
