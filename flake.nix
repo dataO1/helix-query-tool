@@ -456,11 +456,7 @@
                     Group = "helixdb";
 
                     ExecStart = ''
-                      ${self.packages.${system}.helix-cli}/bin/helix start prod \
-                        --host ${cfg.host} \
-                        --port ${toString cfg.port} \
-                        --data-dir ${cfg.dataDir}
-                    '';
+                      ${self.packages.${system}.helix-cli}/bin/helix start prod'';
 
                     Restart = "always";
                     RestartSec = "10s";
