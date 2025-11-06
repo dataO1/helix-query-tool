@@ -406,7 +406,7 @@
               cat ${baseQueriesPath} > $out
 
               # If extra queries file is provided, append it
-              ${lib.optionalString (helixdbCfg.extraQueriesFile != "") ''
+              ${lib.optionalString (helixdbCfg.extraQueriesFile != null) ''
                 cat ${helixdbCfg.extraQueriesFile} >> $out
               ''}
             '';
@@ -448,8 +448,8 @@
               };
 
               extraQueriesFile = lib.mkOption {
-                type = lib.types.path;
-                default = "";
+                type = lib.types.nullOr lib.types.path;
+                default = null;
                 description = "Optional extra HelixQL queries file to merge at build time";
               };
             };
