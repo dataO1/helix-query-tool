@@ -377,7 +377,6 @@
                 environment.systemPackages = [
                   self.packages.${system}.helix-cli
                   self.packages.${system}.helixdb-runtime
-                  helix-init
                 ];
 
                 users.users.helixdb = {
@@ -387,69 +386,64 @@
                 };
                 users.groups.helixdb = {};
 
-
-                helix-init = pkgs.runCommand "helix-indexer" {} ''
-                  mkdir -p $out/bin
-                  # Disable telemetry to avoid permission issues in sandbox
-                  export HELIX_TELEMETRY=off
-                  export HELIX_METRICS=off
-                  export HOME=$TMPDIR
-
-                  # Create reproducible project directory
-                  mkdir -p $out/project
-                  cd $out/project
-
-                  # Create helix.toml configuration
-                  cat > helix.toml << 'TOML'
-                  ${builtins.readFile ./helix.toml}
-                  TOML
-
-                  # Create schema.hx (minimal schema for flexible indexing)
-                  cat > schema.hx << 'HX'
-                  ${builtins.readFile ./schema.hx}
-                  HX
-
-                  # Create combined queries file
-                  mkdir -p queries
-                  cat > queries/queries.hx << 'HX'
-                  ${builtins.readFile ./queries.hx}
-
-                  ${lib.optionalString (builtins.pathExists ./extra-queries.hx) ''
-                    ${builtins.readFile ./extra-queries.hx}
-                  ''}
-                  HX
-                  # Initiating project
-                  echo "Initiating HelixDB project..."
-                  ${self.packages.${system}.helix-cli}/bin/helix init local --name prod > /dev/null 2>&1 || true
-
-                  echo "Adding HelixDB project..."
-                  ${self.packages.${system}.helix-cli}/bin/helix add prod > /dev/null 2>&1 || true
-
-                  # # Validate project
-                  # echo "Validating HelixDB project..."
-                  # ${self.packages.${system}.helix-cli}/bin/helix check prod
-
-                  # Pushing project
-                  echo "Pushing HelixDB project..."
-                  ${self.packages.${system}.helix-cli}/bin/helix push prod
-
-                '';
-
-
                 systemd.services.helixdb = {
                   description = "HelixDB via CLI (prod instance)";
                   after = [ "network.target" ];
                   wantedBy = [ "multi-user.target" ];
+
+                  script = ''
+                    # Disable telemetry to avoid permission issues in sandbox
+                    export HELIX_TELEMETRY=off
+                    export HELIX_METRICS=off
+
+                    cd ${cfg.dataDir}
+
+                    # Create helix.toml configuration
+                    cat > helix.toml << 'TOML'
+                    ${builtins.readFile ./helix.toml}
+                    TOML
+
+                    # Create schema.hx (minimal schema for flexible indexing)
+                    cat > schema.hx << 'HX'
+                    ${builtins.readFile ./schema.hx}
+                    HX
+
+                    # Create combined queries file
+                    mkdir -p queries
+                    cat > queries/queries.hx << 'HX'
+                    ${builtins.readFile ./queries.hx}
+
+                    ${lib.optionalString (builtins.pathExists ./extra-queries.hx) ''
+                      ${builtins.readFile ./extra-queries.hx}
+                    ''}
+                    HX
+                    # Initiating project
+                    echo "Initiating HelixDB project..."
+                    ${self.packages.${system}.helix-cli}/bin/helix init local --name prod > /dev/null 2>&1 || true
+
+                    echo "Adding HelixDB project..."
+                    ${self.packages.${system}.helix-cli}/bin/helix add prod > /dev/null 2>&1 || true
+
+                    # # Validate project
+                    # echo "Validating HelixDB project..."
+                    # ${self.packages.${system}.helix-cli}/bin/helix check prod
+
+                    # Pushing project
+                    echo "Pushing HelixDB project..."
+                    ${self.packages.${system}.helix-cli}/bin/helix push prod
+
+
+                    echo "✓ HelixDB project initialized at $out/project"
+                    ${self.packages.${system}.helix-cli}/bin/helix start prod
+                  '';
 
                   serviceConfig = {
                     Type = "simple";
                     User = "helixdb";
                     Group = "helixdb";
 
-                    ExecStart = ''
-                      echo "✓ HelixDB project initialized at $out/project"
-                      ${self.packages.${system}.helix-cli}/bin/helix start prod
-                    '';
+                    # ExecStart = ''
+                    # '';
 
                     Restart = "always";
                     RestartSec = "10s";
@@ -470,7 +464,6 @@
                     mkdir -p ${cfg.dataDir}
                     chown helixdb:helixdb ${cfg.dataDir}
                     chmod 700 ${cfg.dataDir}
-                    cd ${cfg.dataDir}
                   '';
                 };
 
