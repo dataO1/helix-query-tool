@@ -275,6 +275,11 @@
         helixdb-project = pkgs.runCommand "helixdb-project" {
           buildInputs = [ helix-cli pkgs.coreutils ];
         } ''
+          # Disable telemetry to avoid permission issues in sandbox
+          export HELIX_TELEMETRY=off
+          export HELIX_METRICS=off
+          export HOME=$TMPDIR
+
           # Create reproducible project directory
           mkdir -p $out/project
           cd $out/project
@@ -319,15 +324,6 @@
             ${builtins.readFile ./extra-queries.hx}
           ''}
           HX
-
-          # Init project
-          echo "Initiating HelixDB project..."
-          ${helix-cli}/bin/helix init local --name prod
-
-
-          # Starting project
-          echo "Starting HelixDB project..."
-          ${helix-cli}/bin/helix push prod
 
           # Validate project
           echo "Validating HelixDB project..."
@@ -486,6 +482,7 @@
                     mkdir -p ${cfg.dataDir}
                     chown helixdb:helixdb ${cfg.dataDir}
                     chmod 700 ${cfg.dataDir}
+                    cd ${cfg.dataDir}
                   '';
                 };
 
