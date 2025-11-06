@@ -31,15 +31,18 @@
         };
 
         # ============================================================
-        # HelixDB Python Package - uses hatchling build backend
+        # Build helix-py properly from source
+        # Using hatchling backend as specified in pyproject.toml
         # ============================================================
         helix-py-pkg = pkgs.python3.pkgs.buildPythonPackage {
           pname = "helix-py";
           version = "0.2.30";
           src = helix-py-src;
-
           pyproject = true;
-          build-system = [ pkgs.python3.pkgs.hatchling ];
+
+          nativeBuildInputs = with pkgs.python3.pkgs; [
+            hatchling
+          ];
 
           propagatedBuildInputs = with pkgs.python3.pkgs; [
             requests
@@ -49,9 +52,9 @@
             python-dotenv
           ];
 
-          doCheck = false;
+          # Skip runtime dependency checking since helix-py has many optional extras
           dontCheckRuntimeDeps = true;
-          dontUsePythonImportsCheck = true;
+          doCheck = false;
 
           meta = with pkgs.lib; {
             description = "HelixDB Python client library";
@@ -60,22 +63,23 @@
           };
         };
 
-        # Python environment with HelixDB dependencies
+        # ============================================================
+        # Python environment with helix-py and dependencies
+        # All dependencies are properly available in this environment
+        # ============================================================
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
+          helix-py-pkg
           pyinotify
           requests
           pyyaml
           watchdog
-          helix-py-pkg
+          tqdm
+          python-dotenv
         ]);
 
         # ============================================================
         # Real HelixDB Rust Package from source
         # Build helix-container which is the actual database server
-        # The workspace structure is:
-        # - helix-db (library) - core database engine
-        # - helix-container (binary) - server wrapping helix-db
-        # - helix-cli (binary) - CLI tool for management
         # ============================================================
         helixdb = pkgs.rustPlatform.buildRustPackage rec {
           pname = "helix-db";
@@ -100,17 +104,11 @@
           # Build the helix-container binary which is the database server
           cargoBuildFlags = [ "--bin" "helix-container" "-p" "helix-container" ];
 
-          # Install phase that handles cargo's target directory structure correctly
-          # buildRustPackage uses --target which places binaries in target/$CARGO_BUILD_TARGET/release/
           installPhase = ''
             runHook preInstall
             mkdir -p $out/bin
 
-            # When cargo is invoked with --target, it places binaries in target/$TARGET/release/
-            # The CARGO_BUILD_TARGET is passed by buildRustPackage during the build
             TARGET_DIR="target/x86_64-unknown-linux-gnu/release"
-            
-            # Fallback to target/release if the target-specific directory doesn't exist
             if [ ! -d "$TARGET_DIR" ]; then
               TARGET_DIR="target/release"
             fi
@@ -121,26 +119,9 @@
               echo "Installing helix-container binary from $BIN_PATH..."
               cp "$BIN_PATH" "$out/bin/helix-db"
               chmod +x "$out/bin/helix-db"
-              echo "✓ Binary installed successfully at $out/bin/helix-db"
-              file "$out/bin/helix-db"
+              echo "✓ Binary installed successfully"
             else
-              echo "ERROR: helix-container binary not found"
-              echo ""
-              echo "Expected path: $BIN_PATH"
-              echo ""
-              echo "Checking target/x86_64-unknown-linux-gnu/release:"
-              if [ -d "target/x86_64-unknown-linux-gnu/release" ]; then
-                ls -la target/x86_64-unknown-linux-gnu/release | head -50
-              else
-                echo "  (directory does not exist)"
-              fi
-              echo ""
-              echo "Checking target/release:"
-              if [ -d "target/release" ]; then
-                ls -la target/release | head -50
-              else
-                echo "  (directory does not exist)"
-              fi
+              echo "ERROR: helix-container binary not found at $BIN_PATH"
               exit 1
             fi
 
@@ -155,71 +136,23 @@
           };
         };
 
-        # ============================================================
-        # HelixDB Indexer Service Script (Uses built-in chunking)
-        # Uses pythonEnv to ensure all dependencies are available
-        # ============================================================
-        helixIndexerScript = pkgs.writeScriptBin "helix-file-indexer" ''
-          #!${pythonEnv}/bin/python3
-          
-          # Ensure the python environment has all dependencies
-          import sys
-          sys.path.insert(0, '${pythonEnv}/${pythonEnv.python.sitePackages}')
-          
-          ${builtins.readFile ./src/helix_indexer.py}
-        '';
-
-        # ============================================================
-        # CLI Search Tool (Real backend connection)
-        # Uses pythonEnv to ensure all dependencies are available
-        # ============================================================
-        helixSearchTool = pkgs.writeScriptBin "helix-search" ''
-          #!${pythonEnv}/bin/python3
-          
-          # Ensure the python environment has all dependencies
-          import sys
-          sys.path.insert(0, '${pythonEnv}/${pythonEnv.python.sitePackages}')
-          
-          ${builtins.readFile ./src/helix_search.py}
-        '';
-
-        # ============================================================
-        # MCP Server Script
-        # Uses pythonEnv to ensure all dependencies are available
-        # ============================================================
-        helixMcpServer = pkgs.writeScriptBin "helix-mcp-server" ''
-          #!${pythonEnv}/bin/python3
-          
-          # Ensure the python environment has all dependencies
-          import sys
-          sys.path.insert(0, '${pythonEnv}/${pythonEnv.python.sitePackages}')
-          
-          ${builtins.readFile ./src/helix_mcp_server.py}
-        '';
-
       in {
         # ============================================================
         # Packages
         # ============================================================
         packages = {
           helixdb = helixdb;
-          helix-indexer = helixIndexerScript;
-          helix-search = helixSearchTool;
-          helix-mcp-server = helixMcpServer;
           helix-py = helix-py-pkg;
-          default = helixSearchTool;
+          python-env = pythonEnv;
+          default = helixdb;
         };
 
         # ============================================================
-        # Development Shell - Updated with minimum Rust 1.88
+        # Development Shell
         # ============================================================
         devShells.default = pkgs.mkShell {
           buildInputs = with pkgs; [
             pythonEnv
-            helixIndexerScript
-            helixSearchTool
-            helixMcpServer
-            # Use stable latest Rust (ensures 1.88.0+)
             pkgs.rust-bin.stable.latest.default
             cargo
             pkg-config
@@ -260,7 +193,7 @@
             };
 
             config = lib.mkIf cfg.enable {
-              home.packages = [ self.packages.${system}.helix-search ];
+              home.packages = [ self.packages.${system}.python-env ];
 
               programs.bash.shellAliases = cfg.aliases;
               programs.zsh.shellAliases = cfg.aliases;
@@ -287,9 +220,6 @@
             cfg = config.services.helix-indexer;
             helixdbCfg = config.services.helixdb;
           in {
-            # ========================================================
-            # HelixDB Service Module
-            # ========================================================
             options.services.helixdb = {
               enable = lib.mkEnableOption "HelixDB vector-graph database service";
 
@@ -324,9 +254,6 @@
               };
             };
 
-            # ========================================================
-            # File Indexer Service Module
-            # ========================================================
             options.services.helix-indexer = {
               enable = lib.mkEnableOption "HelixDB automatic file indexing service";
 
@@ -360,9 +287,6 @@
               };
             };
 
-            # ========================================================
-            # Configuration Implementation
-            # ========================================================
             config = lib.mkMerge [
               # ====== HelixDB Service ======
               (lib.mkIf helixdbCfg.enable {
@@ -434,10 +358,7 @@
 
               # ====== File Indexer Service ======
               (lib.mkIf cfg.enable {
-                environment.systemPackages = [ 
-                  self.packages.${system}.helix-search
-                  self.packages.${system}.helix-indexer
-                ];
+                environment.systemPackages = [ self.packages.${system}.python-env ];
 
                 users.users.helix-indexer = {
                   description = "HelixDB File Indexer user";
@@ -465,7 +386,7 @@
                     User = "helix-indexer";
                     Group = "helix-indexer";
 
-                    ExecStart = "${self.packages.${system}.helix-indexer}/bin/helix-file-indexer";
+                    ExecStart = "${self.packages.${system}.python-env}/bin/python3 ./src/helix_indexer.py";
 
                     Restart = "on-failure";
                     RestartSec = "10s";
@@ -503,10 +424,6 @@
 
               # ====== MCP Server Service ======
               (lib.mkIf (cfg.enable && cfg.mcpServer.enable) {
-                environment.systemPackages = [ 
-                  self.packages.${system}.helix-mcp-server
-                ];
-
                 systemd.services.helix-mcp-server = {
                   description = "HelixDB MCP Server for AI Agents";
                   after = [ "network.target" ] ++ lib.optional helixdbCfg.enable "helixdb.service";
@@ -518,7 +435,7 @@
                     User = "helix-indexer";
                     Group = "helix-indexer";
 
-                    ExecStart = "${self.packages.${system}.helix-mcp-server}/bin/helix-mcp-server";
+                    ExecStart = "${self.packages.${system}.python-env}/bin/python3 ./src/helix_mcp_server.py";
 
                     Restart = "always";
                     RestartSec = "5s";
@@ -537,11 +454,6 @@
                   };
                 };
               })
-
-              {
-                environment.systemPackages = lib.optionals cfg.enable
-                  [ self.packages.${system}.helix-search ];
-              }
             ];
           };
 
