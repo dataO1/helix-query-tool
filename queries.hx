@@ -1,44 +1,32 @@
-// Add and index a document using vector embedding
-QUERY add_document(filepath: String, content: String, filetype: String, metadata: Json) =>
-  doc <- AddV<Document>({
-    filepath: filepath,
-    content: content,
-    filetype: filetype,
-    metadata: metadata,
-    embedding: Embed(content)
-  })
-  RETURN doc
-
 // Semantic text search with embedding
 QUERY search_with_text(query: String, limit: I64) =>
   results <- SearchV<Document>(Embed(query), limit)
   RETURN results
 
-// Keyword search on metadata (with postfiltering)
+// Keyword search (NOTE: SearchV doesn't exist for keyword; use traversal instead)
 QUERY search_keyword(keywords: [String], limit: I64) =>
-  results <- SearchV<Document>(Embed(keywords[0]), limit)
-  ::WHERE(_::{metadata}::CONTAINS(keywords))
+  results <- All<Document>()
+  ::WHERE(_::{metadata}::CONTAINS(keywords[0]))
   RETURN results
 
-// List indexed files - requires traversal
+// List indexed files
 QUERY list_indexed_files(limit: I64) =>
   files <- All<Document>()
   RETURN files
 
-// Retrieve file by path
+// Retrieve file by path (use traversal + filter, not All)
 QUERY get_file_content(filepath: String) =>
-  content <- All<Document>()
+  doc <- All<Document>()
   ::WHERE(_::{filepath}::EQ(filepath))
-  RETURN content
+  RETURN doc::{content}
 
 // Retrieve file metadata by path
 QUERY get_file_metadata(filepath: String) =>
-  metadata <- All<Document>()
+  doc <- All<Document>()
   ::WHERE(_::{filepath}::EQ(filepath))
-  RETURN metadata::{filepath, metadata, filetype}
+  RETURN doc::{filepath, metadata, filetype}
 
-// Indexing statistics - may not exist in HelixQL
-// You may need to implement this differently via SDK
+// Indexing statistics (count nodes)
 QUERY get_index_stats() =>
-  count <- Count<Document>()
+  count <- All<Document>()
   RETURN count
