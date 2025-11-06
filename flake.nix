@@ -326,7 +326,7 @@
           HX
           # Initiating project
           echo "Initiating HelixDB project..."
-          ${helix-cli}/bin/helix init local --name prod
+          ${helix-cli}/bin/helix init local --name prod > /dev/null 2>&1 || true
 
           # Pushing project
           echo "Initiating HelixDB project..."
