@@ -328,6 +328,9 @@
           echo "Initiating HelixDB project..."
           ${helix-cli}/bin/helix init local --name prod > /dev/null 2>&1 || true
 
+          echo "Adding HelixDB project..."
+          ${helix-cli}/bin/helix add prod > /dev/null 2>&1 || true
+
           # Validate project
           echo "Validating HelixDB project..."
           ${helix-cli}/bin/helix check prod
