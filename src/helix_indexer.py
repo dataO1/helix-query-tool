@@ -4,7 +4,7 @@
 HelixDB File Indexer Service
 
 Auto-indexes file changes using inotify and HelixDB's built-in smart chunking.
-Delegates chunking to HelixDB backend which automatically detects file types.
+Delegates chunking to HelixDB backend which auto-detects chunking mode and file types.
 """
 
 import os
@@ -13,12 +13,15 @@ import time
 import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
-import pyinotify
 import fnmatch
+import pyinotify
 from dataclasses import dataclass
 
-import helix
-from helix.client import Client
+try:
+    from helix.client import Client
+except ImportError:
+    print("Error: helix-py is not installed. Install with: pip install helix-py")
+    sys.exit(1)
 
 @dataclass
 class IndexerConfig:
@@ -41,7 +44,7 @@ class HelixIndexer:
 
     def __init__(self, host: str = "localhost", port: int = 6969):
         try:
-            # Connect to HelixDB instance
+            # Connect to a remote HelixDB instance
             self.client = Client(local=True)
             logging.info(f"✅ Connected to HelixDB at {host}:{port}")
         except Exception as e:
@@ -62,7 +65,6 @@ class HelixIndexer:
             file_ext = path_obj.suffix.lower()
             filetype = file_ext[1:] if file_ext else "unknown"
 
-            # Metadata for the document
             metadata = {
                 "filepath": filepath,
                 "filename": path_obj.name,
@@ -72,18 +74,14 @@ class HelixIndexer:
                 "directory": str(path_obj.parent)
             }
 
-            # HelixDB's query for inserting indexed documents
-            # The backend handles chunking automatically based on file type
-            result = self.client.query(
-                "AddDocument",
-                {
-                    "filepath": filepath,
-                    "content": content,
-                    "filetype": filetype,
-                    "metadata": metadata
-                }
-            )
-
+            # Use the built-in add_document query (case-sensitive)
+            payload = {
+                "filepath": filepath,
+                "content": content,
+                "filetype": filetype,
+                "metadata": metadata,
+            }
+            result = self.client.query('add_document', payload)
             logging.info(f"✓ Indexed: {filepath} ({len(content)} chars, type: {filetype})")
             return True
         except Exception as e:
@@ -93,8 +91,7 @@ class HelixIndexer:
     def health_check(self) -> bool:
         """Check if HelixDB is healthy"""
         try:
-            # Test connection
-            self.client.query("GetHealth", {})
+            self.client.query('get_health', {})
             return True
         except Exception:
             return False
@@ -129,14 +126,10 @@ class FileChangeHandler(pyinotify.ProcessEvent):
             logging.debug(f"Ignoring excluded file: {filepath}")
             return
 
-        # Skip if file doesn't exist or can't be read
         if not os.path.isfile(filepath):
             return
 
-        # Add to pending batch
         self.pending_files.add(filepath)
-
-        # Process batch if enough files or enough time passed
         now = time.time()
         if (len(self.pending_files) >= self.config.batch_size or
                 now - self.last_batch_time > 5):  # 5 second timeout
@@ -153,14 +146,10 @@ class FileChangeHandler(pyinotify.ProcessEvent):
             try:
                 self.index_file(filepath)
                 self.pending_files.discard(filepath)
-
-                # Reset retry count on success
                 if filepath in self.failed_files:
                     del self.failed_files[filepath]
-
             except Exception as e:
                 logging.error(f"Failed to process {filepath}: {e}")
-                # Track failures for potential retry
                 self.failed_files[filepath] = self.failed_files.get(filepath, 0) + 1
 
         self.last_batch_time = time.time()
@@ -170,13 +159,9 @@ class FileChangeHandler(pyinotify.ProcessEvent):
         try:
             with open(filepath, 'r', encoding='utf-8', errors='ignore') as f:
                 content = f.read()
-
-            # Use HelixDB's indexer with built-in smart chunking
             success = self.indexer.index_document(filepath, content)
-
             if not success:
                 logging.warning(f"Indexing returned false for: {filepath}")
-
         except PermissionError:
             logging.debug(f"Permission denied reading: {filepath}")
         except Exception as e:
@@ -185,37 +170,27 @@ class FileChangeHandler(pyinotify.ProcessEvent):
 def load_config() -> IndexerConfig:
     """Load configuration from environment"""
     config = IndexerConfig()
-
-    # Environment variables
     config.helix_host = os.getenv("HELIX_DB_HOST", config.helix_host)
     config.helix_port = int(os.getenv("HELIX_DB_PORT", config.helix_port))
-
     watch_paths_env = os.getenv("WATCH_PATHS")
     if watch_paths_env:
         config.watch_paths = [p.strip() for p in watch_paths_env.split(":") if p.strip()]
-
     exclude_patterns_env = os.getenv("EXCLUDE_PATTERNS")
     if exclude_patterns_env:
         config.exclude_patterns = [p.strip() for p in exclude_patterns_env.split(":") if p.strip()]
-
     config.log_level = os.getenv("LOG_LEVEL", config.log_level)
-
     return config
 
 def setup_logging(level: str):
     """Setup logging configuration - logs to stdout and optionally to file if writable"""
     numeric_level = getattr(logging, level.upper(), logging.INFO)
-
     handlers = [logging.StreamHandler(sys.stdout)]
-
-    # Try to add file handler if directory exists and is writable
     log_dir = "/var/lib/helix-indexer"
     if os.path.exists(log_dir) and os.access(log_dir, os.W_OK):
         try:
             handlers.append(logging.FileHandler(f"{log_dir}/indexer.log", mode='a'))
         except Exception as e:
             logging.warning(f"Could not create log file: {e}")
-
     logging.basicConfig(
         level=numeric_level,
         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -226,26 +201,22 @@ def main():
     """Main entry point"""
     config = load_config()
     setup_logging(config.log_level)
-
     logging.info("🚀 Starting HelixDB File Indexer")
     logging.info(f"📂 Watching paths: {config.watch_paths}")
     logging.info(f"🚫 Exclude patterns: {config.exclude_patterns}")
     logging.info(f"🗄️ Batch size: {config.batch_size}")
 
-    # Initialize HelixDB client
     try:
         indexer = HelixIndexer(config.helix_host, config.helix_port)
     except Exception as e:
         logging.error(f"💥 Failed to initialize HelixDB indexer: {e}")
         sys.exit(1)
 
-    # Setup file monitoring
     wm = pyinotify.WatchManager()
     mask = pyinotify.IN_MODIFY | pyinotify.IN_CREATE | pyinotify.IN_MOVED_TO
     handler = FileChangeHandler(indexer, config)
     notifier = pyinotify.Notifier(wm, handler)
 
-    # Add watches for all configured paths
     for watch_path in config.watch_paths:
         if os.path.exists(watch_path):
             logging.info(f"👀 Adding watch for: {watch_path}")
@@ -261,7 +232,6 @@ def main():
         notifier.loop()
     except KeyboardInterrupt:
         logging.info("🛑 Shutting down file indexer")
-        # Process any remaining files
         handler.process_batch()
     except Exception as e:
         logging.error(f"💥 Indexer crashed: {e}")

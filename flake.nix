@@ -349,6 +349,7 @@
             helix-mcp-server-pkg
             helix-indexer-pkg
             helix-search-tool-pkg
+            ffmpeg
           ];
 
           shellHook = ''
@@ -379,7 +380,7 @@
             };
 
             config = lib.mkIf cfg.enable {
-              home.packages = [ self.packages.${system}.helix-search ];
+              home.packages = [ self.packages.${system}.helix-search pkgs.ffmpeg ];
               programs.bash.shellAliases = cfg.aliases;
               programs.zsh.shellAliases = cfg.aliases;
               programs.fish.shellAliases = cfg.aliases;
