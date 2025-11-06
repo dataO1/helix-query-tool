@@ -33,7 +33,7 @@
         pkgs = import nixpkgs {
           inherit system overlays;
         };
-
+        lib = pkgs.lib;
 
         # ============================================================
         # Build voyageai from PyPI (not available in nixpkgs)
@@ -259,6 +259,29 @@
           ${builtins.readFile ./src/helix_search.py}
           EOF
           chmod +x $out/bin/helix-search
+          '';
+
+        # Base queries file within the repo
+        baseQueries = ./queries.hx;
+
+        # Optional extra queries file from NixOS config
+        extraQueriesFile = let
+          file = self.nixosModules.default.config.services.helixdb.extraQueriesFile;
+        in
+          if file == null then null
+          else if lib.pathExists file then file else null;
+
+        combinedQueries = pkgs.runCommand "combined-queries.hx" {
+          buildInputs = [ pkgs.coreutils ];
+        } ''
+          if [ -f ${baseQueries} ]; then
+            cat ${baseQueries} > $out
+          else
+            touch $out
+          fi
+          if [ -n "${extraQueriesFile}" ] && [ -f "${extraQueriesFile}" ]; then
+            cat "${extraQueriesFile}" >> $out
+          fi
         '';
 
         # ============================================================
@@ -306,7 +329,11 @@
             else
               echo "ERROR: helix-container binary not found at $BIN_PATH"
               exit 1
-            fi
+              fi
+
+            # Copy combined queries as static file in package
+            mkdir -p $out/etc/helix-db
+            cp ${combinedQueries} $out/etc/helix-db/queries.hx
 
             runHook postInstall
           '';
@@ -427,6 +454,12 @@
                 default = false;
                 description = "Open firewall port for HelixDB";
               };
+
+              extraQueriesFile = lib.mkOption {
+                type = lib.types.nullOrFile;
+                default = null;
+                description = "Optional extra HelixQL queries file to merge at build time";
+              };
             };
 
             options.services.helix-indexer = {
@@ -485,7 +518,8 @@
                         --host ${helixdbCfg.host} \
                         --port ${toString helixdbCfg.port} \
                         --data ${helixdbCfg.dataDir} \
-                        --log-level ${helixdbCfg.logLevel}
+                        --log-level ${helixdbCfg.logLevel} \
+                        --queries ${helixdb}/etc/helix-db/queries.hx
                     '';
 
                     Restart = "always";
