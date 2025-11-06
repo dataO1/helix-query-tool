@@ -511,11 +511,11 @@
 
                     ExecStart = ''
                       ${self.packages.${system}.helixdb}/bin/helix-db \
-                        --host ${helixdbCfg.host} \
-                        --port ${toString helixdbCfg.port} \
-                        --data ${helixdbCfg.dataDir} \
-                        --log-level ${helixdbCfg.logLevel} \
-                        --queries ${helixdbConfigDir}/queries.hx
+                        # --host ${helixdbCfg.host} \
+                        # --port ${toString helixdbCfg.port} \
+                        # --data ${helixdbCfg.dataDir} \
+                        # --log-level ${helixdbCfg.logLevel} \
+                        --queries-path ${helixdbConfigDir}/queries.hx
                     '';
 
                     Restart = "always";
