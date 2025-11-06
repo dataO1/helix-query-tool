@@ -406,6 +406,7 @@
                     cat > helix.toml << 'TOML'
                     ${builtins.readFile ./helix.toml}
                     TOML
+                    chown helix:helix helix.toml
 
                     # Create schema.hx (minimal schema for flexible indexing)
                     cat > db/schema.hx << 'HX'
@@ -413,7 +414,7 @@
                     HX
 
                     # Create combined queries file
-                    cat > queries/queries.hx << 'HX'
+                    cat > db/queries.hx << 'HX'
                     ${builtins.readFile ./queries.hx}
 
                     ${lib.optionalString (builtins.pathExists ./extra-queries.hx) ''
@@ -421,9 +422,10 @@
                     ''}
                     HX
 
-                    echo "Building HelixDB project..."
-                    ${self.packages.${system}.helix-cli}/bin/helix build prod > /dev/null 2>&1 || true
+                    chown -R helix:helix db
 
+                    echo "Building HelixDB project..."
+                    ${self.packages.${system}.helix-cli}/bin/helix build prod
                     # Pushing project
                     echo "Pushing HelixDB project..."
                     ${self.packages.${system}.helix-cli}/bin/helix push prod
