@@ -406,7 +406,7 @@
                     cat > helix.toml << 'TOML'
                     ${builtins.readFile ./helix.toml}
                     TOML
-                    chown helix:helix helix.toml
+                    chown helixdb:helixdb helix.toml
 
                     # Create schema.hx (minimal schema for flexible indexing)
                     cat > db/schema.hx << 'HX'
@@ -422,7 +422,7 @@
                     ''}
                     HX
 
-                    chown -R helix:helix db
+                    chown -R helixdb:helixdb db
 
                     echo "Building HelixDB project..."
                     ${self.packages.${system}.helix-cli}/bin/helix build prod
