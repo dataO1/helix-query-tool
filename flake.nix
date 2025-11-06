@@ -52,7 +52,6 @@
             python-dotenv
           ];
 
-          # Skip runtime dependency checking since helix-py has many optional extras
           dontCheckRuntimeDeps = true;
           doCheck = false;
 
@@ -65,7 +64,6 @@
 
         # ============================================================
         # Python environment with helix-py and dependencies
-        # All dependencies are properly available in this environment
         # ============================================================
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
           helix-py-pkg
@@ -76,6 +74,42 @@
           tqdm
           python-dotenv
         ]);
+
+        # ============================================================
+        # Helix Indexer Package - bundles src/helix_indexer.py
+        # ============================================================
+        helix-indexer-pkg = pkgs.runCommand "helix-indexer" {} ''
+          mkdir -p $out/bin
+          cat > $out/bin/helix-file-indexer << 'EOF'
+          #!${pythonEnv}/bin/python3
+          ${builtins.readFile ./src/helix_indexer.py}
+          EOF
+          chmod +x $out/bin/helix-file-indexer
+        '';
+
+        # ============================================================
+        # Helix MCP Server Package - bundles src/helix_mcp_server.py
+        # ============================================================
+        helix-mcp-server-pkg = pkgs.runCommand "helix-mcp-server" {} ''
+          mkdir -p $out/bin
+          cat > $out/bin/helix-mcp-server << 'EOF'
+          #!${pythonEnv}/bin/python3
+          ${builtins.readFile ./src/helix_mcp_server.py}
+          EOF
+          chmod +x $out/bin/helix-mcp-server
+        '';
+
+        # ============================================================
+        # Helix Search Tool Package - bundles src/helix_search.py
+        # ============================================================
+        helix-search-tool-pkg = pkgs.runCommand "helix-search-tool" {} ''
+          mkdir -p $out/bin
+          cat > $out/bin/helix-search << 'EOF'
+          #!${pythonEnv}/bin/python3
+          ${builtins.readFile ./src/helix_search.py}
+          EOF
+          chmod +x $out/bin/helix-search
+        '';
 
         # ============================================================
         # Real HelixDB Rust Package from source
@@ -101,7 +135,6 @@
 
           doCheck = false;
 
-          # Build the helix-container binary which is the database server
           cargoBuildFlags = [ "--bin" "helix-container" "-p" "helix-container" ];
 
           installPhase = ''
@@ -144,6 +177,9 @@
           helixdb = helixdb;
           helix-py = helix-py-pkg;
           python-env = pythonEnv;
+          helix-indexer = helix-indexer-pkg;
+          helix-mcp-server = helix-mcp-server-pkg;
+          helix-search = helix-search-tool-pkg;
           default = helixdb;
         };
 
@@ -175,12 +211,6 @@
             options.services.helix-search = {
               enable = lib.mkEnableOption "HelixDB search CLI integration";
 
-              searchPaths = lib.mkOption {
-                type = lib.types.listOf lib.types.str;
-                default = [ "$HOME" ];
-                description = "Paths to suggest for indexing (user-level only)";
-              };
-
               aliases = lib.mkOption {
                 type = lib.types.attrsOf lib.types.str;
                 default = {
@@ -193,22 +223,10 @@
             };
 
             config = lib.mkIf cfg.enable {
-              home.packages = [ self.packages.${system}.python-env ];
-
+              home.packages = [ self.packages.${system}.helix-search ];
               programs.bash.shellAliases = cfg.aliases;
               programs.zsh.shellAliases = cfg.aliases;
               programs.fish.shellAliases = cfg.aliases;
-
-              xdg.configFile."helix-search/config.yaml".text = ''
-                helix_db:
-                  host: "localhost"
-                  port: 6969
-                  timeout: 30
-                cli:
-                  default_limit: 15
-                  highlight_results: true
-                  show_snippets: true
-              '';
             };
           };
 
@@ -265,10 +283,7 @@
 
               excludePatterns = lib.mkOption {
                 type = lib.types.listOf lib.types.str;
-                default = [
-                  "*.swp" "*.tmp" "*~" ".git/*"
-                  "node_modules/*" ".nix-*"
-                ];
+                default = [ "*.swp" "*.tmp" "*~" ".git/*" "node_modules/*" ".nix-*" ];
                 description = "File patterns to exclude from indexing";
               };
 
@@ -288,17 +303,14 @@
             };
 
             config = lib.mkMerge [
-              # ====== HelixDB Service ======
               (lib.mkIf helixdbCfg.enable {
                 environment.systemPackages = [ self.packages.${system}.helixdb ];
 
                 users.users.helixdb = {
-                  description = "HelixDB service user";
                   isSystemUser = true;
                   group = "helixdb";
                   home = helixdbCfg.dataDir;
                 };
-
                 users.groups.helixdb = {};
 
                 systemd.services.helixdb = {
@@ -356,17 +368,17 @@
                   lib.optionals helixdbCfg.openFirewall [ helixdbCfg.port ];
               })
 
-              # ====== File Indexer Service ======
               (lib.mkIf cfg.enable {
-                environment.systemPackages = [ self.packages.${system}.python-env ];
+                environment.systemPackages = [ 
+                  self.packages.${system}.helix-indexer
+                  self.packages.${system}.helix-search
+                ];
 
                 users.users.helix-indexer = {
-                  description = "HelixDB File Indexer user";
                   isSystemUser = true;
                   group = "helix-indexer";
                   home = "/var/lib/helix-indexer";
                 };
-
                 users.groups.helix-indexer = {};
 
                 boot.kernel.sysctl = {
@@ -386,7 +398,7 @@
                     User = "helix-indexer";
                     Group = "helix-indexer";
 
-                    ExecStart = "${self.packages.${system}.python-env}/bin/python3 ./src/helix_indexer.py";
+                    ExecStart = "${self.packages.${system}.helix-indexer}/bin/helix-file-indexer";
 
                     Restart = "on-failure";
                     RestartSec = "10s";
@@ -422,8 +434,9 @@
                 };
               })
 
-              # ====== MCP Server Service ======
               (lib.mkIf (cfg.enable && cfg.mcpServer.enable) {
+                environment.systemPackages = [ self.packages.${system}.helix-mcp-server ];
+
                 systemd.services.helix-mcp-server = {
                   description = "HelixDB MCP Server for AI Agents";
                   after = [ "network.target" ] ++ lib.optional helixdbCfg.enable "helixdb.service";
@@ -435,10 +448,14 @@
                     User = "helix-indexer";
                     Group = "helix-indexer";
 
-                    ExecStart = "${self.packages.${system}.python-env}/bin/python3 ./src/helix_mcp_server.py";
+                    ExecStart = "${self.packages.${system}.helix-mcp-server}/bin/helix-mcp-server";
 
                     Restart = "always";
                     RestartSec = "5s";
+
+                    StateDirectory = "helix-indexer";
+                    StateDirectoryMode = "0700";
+                    WorkingDirectory = "/var/lib/helix-indexer";
 
                     ProtectSystem = "strict";
                     ProtectHome = true;
