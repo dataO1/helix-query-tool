@@ -328,13 +328,13 @@
           echo "Initiating HelixDB project..."
           ${helix-cli}/bin/helix init local --name prod > /dev/null 2>&1 || true
 
-          # Pushing project
-          echo "Initiating HelixDB project..."
-          ${helix-cli}/bin/helix push prod
-
           # Validate project
           echo "Validating HelixDB project..."
           ${helix-cli}/bin/helix check prod
+
+          # Pushing project
+          echo "Pushing HelixDB project..."
+          ${helix-cli}/bin/helix push prod
 
           echo "✓ HelixDB project initialized at $out/project"
         '';
