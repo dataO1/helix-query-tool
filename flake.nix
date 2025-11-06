@@ -20,14 +20,136 @@
       url = "github:HelixDB/helix-py";
       flake = false;
     };
+    google-genai-src = {
+      url = "github:googleapis/python-genai";
+      flake = false;
+    };
   };
 
-  outputs = { self, nixpkgs, flake-utils, rust-overlay, home-manager, helix-db-src, helix-py-src }:
+  outputs = { self, nixpkgs, flake-utils, rust-overlay, home-manager, helix-db-src, helix-py-src, google-genai-src }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs {
           inherit system overlays;
+        };
+
+
+        # ============================================================
+        # Build voyageai from PyPI (not available in nixpkgs)
+        # Required by helix-py for semantic chunking
+        # ============================================================
+        voyageai-pkg = pkgs.python3.pkgs.buildPythonPackage {
+          pname = "voyageai";
+          version = "0.3.5";
+          format = "pyproject";
+          src = pkgs.fetchPypi {
+            pname = "voyageai";
+            version = "0.3.5";
+            sha256 = "sha256-lj4NcWEa9Sn6DkltsjKk9mC19zvOevGrKIp/Wd91Eto=";
+          };
+
+          nativeBuildInputs = with pkgs.python3.pkgs; [
+            setuptools
+            wheel
+            poetry-core
+            aiohttp
+            aiolimiter
+            langchain-text-splitters
+            numpy
+            pillow
+            pydantic
+            requests
+            tenacity
+            tokenizers
+          ];
+
+          propagatedBuildInputs = with pkgs.python3.pkgs; [
+          ];
+
+          doCheck = false;
+
+          meta = with pkgs.lib; {
+            description = "Voyage AI provides cutting-edge embedding and rerankers.";
+            homepage = "https://pypi.org/project/voyageai/";
+            license = licenses.mit;
+          };
+        };
+
+        # ============================================================
+        # Build chonkie from PyPI (not available in nixpkgs)
+        # Required by helix-py for semantic chunking
+        # ============================================================
+        chonkie-pkg = pkgs.python3.pkgs.buildPythonPackage {
+          pname = "chonkie";
+          version = "1.4.1";
+          format = "pyproject";
+          src = pkgs.fetchPypi {
+            pname = "chonkie";
+            version = "1.4.1";
+            sha256 = "sha256-u+1+p2cByo9i7xn0NO4DrFb73uM5nwakpPL8mgrhJp0=";
+          };
+
+          nativeBuildInputs = with pkgs.python3.pkgs; [
+            setuptools
+            wheel
+            tokenizers
+            cython
+            numpy
+            loguru
+          ];
+
+          propagatedBuildInputs = with pkgs.python3.pkgs; [
+            regex
+            tiktoken
+            nltk
+          ];
+
+          doCheck = false;
+
+          meta = with pkgs.lib; {
+            description = "Chonkie - Fast semantic chunking for text";
+            homepage = "https://pypi.org/project/chonkie/";
+            license = licenses.mit;
+          };
+        };
+
+        # ============================================================
+        # Build google-genai from GitHub using hatchling backend
+        # For Gemini embeddings and generative AI features
+        # ============================================================
+        google-genai-pkg = pkgs.python3.pkgs.buildPythonPackage {
+          pname = "google-genai";
+          version = "1.13.0";
+          format = "pyproject";
+          src = google-genai-src;
+
+          nativeBuildInputs = with pkgs.python3.pkgs; [
+            hatchling
+            hatch-fancy-pypi-readme
+            setuptools
+            pkginfo
+            twine
+            tenacity
+            websockets
+          ];
+
+          propagatedBuildInputs = with pkgs.python3.pkgs; [
+            httpx
+            google-api-core
+            google-auth
+            pydantic
+            typing-extensions
+          ];
+
+          doCheck = false;
+          dontUsePythonImportsCheck = true;
+
+          meta = with pkgs.lib; {
+            description = "Google Gen AI Python SDK - Official replacement for google-generativeai";
+            homepage = "https://github.com/googleapis/python-genai";
+            license = licenses.asl20;
+          };
         };
 
         # ============================================================
@@ -45,11 +167,17 @@
           ];
 
           propagatedBuildInputs = with pkgs.python3.pkgs; [
+            # Core dependencies
             requests
             pydantic
             httpx
             tqdm
             python-dotenv
+            # Optional dependencies for enhanced functionality
+            numpy
+            pyarrow
+            chonkie-pkg
+            google-genai-pkg
           ];
 
           dontCheckRuntimeDeps = true;
@@ -63,7 +191,7 @@
         };
 
         # ============================================================
-        # Python environment with helix-py and dependencies
+        # Python environment with helix-py and all dependencies
         # ============================================================
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
           helix-py-pkg
@@ -73,6 +201,28 @@
           watchdog
           tqdm
           python-dotenv
+          numpy
+          pyarrow
+          chonkie-pkg
+          loguru
+          markitdown
+          tokenizers
+          fastmcp
+          google-genai-pkg
+          google-api-core
+          google-auth
+          tenacity
+          voyageai-pkg
+          langchain-text-splitters
+          aiohttp
+          aiolimiter
+          langchain-text-splitters
+          numpy
+          pillow
+          pydantic
+          requests
+          tenacity
+          tokenizers
         ]);
 
         # ============================================================
@@ -176,6 +326,9 @@
         packages = {
           helixdb = helixdb;
           helix-py = helix-py-pkg;
+          chonkie = chonkie-pkg;
+          voyageai = voyageai-pkg;
+          google-genai = google-genai-pkg;
           python-env = pythonEnv;
           helix-indexer = helix-indexer-pkg;
           helix-mcp-server = helix-mcp-server-pkg;
@@ -193,6 +346,9 @@
             cargo
             pkg-config
             openssl
+            helix-mcp-server-pkg
+            helix-indexer-pkg
+            helix-search-tool-pkg
           ];
 
           shellHook = ''
@@ -369,7 +525,7 @@
               })
 
               (lib.mkIf cfg.enable {
-                environment.systemPackages = [ 
+                environment.systemPackages = [
                   self.packages.${system}.helix-indexer
                   self.packages.${system}.helix-search
                 ];

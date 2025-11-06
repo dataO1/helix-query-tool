@@ -17,12 +17,8 @@ import pyinotify
 import fnmatch
 from dataclasses import dataclass
 
-try:
-    import helix
-    from helix.client import Client
-except ImportError:
-    print("Error: helix-py is not installed. Install with: pip install helix-py")
-    sys.exit(1)
+import helix
+from helix.client import Client
 
 @dataclass
 class IndexerConfig:

@@ -18,6 +18,22 @@
         "type": "github"
       }
     },
+    "google-genai-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1762393066,
+        "narHash": "sha256-MDJv9q/s1GTw/H4YAPGL01RYk8G8+BpVmX0JLccnvlM=",
+        "owner": "googleapis",
+        "repo": "python-genai",
+        "rev": "bd10082d2086a85f18b4d0391f47e21bb014d4cd",
+        "type": "github"
+      },
+      "original": {
+        "owner": "googleapis",
+        "repo": "python-genai",
+        "type": "github"
+      }
+    },
     "helix-db-src": {
       "flake": false,
       "locked": {
@@ -89,6 +105,7 @@
     "root": {
       "inputs": {
         "flake-utils": "flake-utils",
+        "google-genai-src": "google-genai-src",
         "helix-db-src": "helix-db-src",
         "helix-py-src": "helix-py-src",
         "home-manager": "home-manager",
