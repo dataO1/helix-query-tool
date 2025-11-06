@@ -1,15 +1,15 @@
 [project]
 name = "helix"
 version = "1.0.0"
+queries = "./db/"
 
-[instances.prod]
+[local.prod]
 build_mode = "release"
 mcp = true
 bm25 = true
-embedding_model = "text-embedding-ada-002"
-db_max_size_gb = 100
+# db_max_size_gb = 100
 
-[instances.prod.vector]
-m = 16
-ef_construction = 128
-ef_search = 768
+# [local.prod.vector_config]
+# m = 16
+# ef_construction = 128
+# ef_search = 768
