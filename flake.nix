@@ -266,7 +266,7 @@
 
         # Optional extra queries file from NixOS config
         extraQueriesFile = let
-          file = self.nixosModules.default.config.services.helixdb.extraQueriesFile;
+          file = self.nixosModules.${system}.default.config.services.helixdb.extraQueriesFile;
         in
           if file == null then null
           else if lib.pathExists file then file else null;
