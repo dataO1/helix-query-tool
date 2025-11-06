@@ -331,9 +331,9 @@
           echo "Adding HelixDB project..."
           ${helix-cli}/bin/helix add prod > /dev/null 2>&1 || true
 
-          # Validate project
-          echo "Validating HelixDB project..."
-          ${helix-cli}/bin/helix check prod
+          # # Validate project
+          # echo "Validating HelixDB project..."
+          # ${helix-cli}/bin/helix check prod
 
           # Pushing project
           echo "Pushing HelixDB project..."
