@@ -320,6 +320,15 @@
           ''}
           HX
 
+          # Init project
+          echo "Initiating HelixDB project..."
+          ${helix-cli}/bin/helix init local --name prod
+
+
+          # Starting project
+          echo "Starting HelixDB project..."
+          ${helix-cli}/bin/helix push prod
+
           # Validate project
           echo "Validating HelixDB project..."
           ${helix-cli}/bin/helix check prod
@@ -327,23 +336,23 @@
           echo "✓ HelixDB project initialized at $out/project"
         '';
 
-        # ============================================================
-        # Initialize HelixDB Data Directory
-        # Run helix build to prepare the instance
-        # ============================================================
-        helixdb-initialized = pkgs.runCommand "helixdb-initialized" {
-          buildInputs = [ helix-cli pkgs.docker pkgs.coreutils ];
-          preferLocalBuild = true;
-          allowSubstitutes = false;
-        } ''
-          mkdir -p $out/data
-          cd ${helixdb-project}/project
-
-          echo "Building HelixDB instance..."
-          ${helix-cli}/bin/helix build prod --output-dir $out/data
-
-          echo "✓ HelixDB instance built at $out/data"
-        '';
+        # # ============================================================
+        # # Initialize HelixDB Data Directory
+        # # Run helix build to prepare the instance
+        # # ============================================================
+        # helixdb-initialized = pkgs.runCommand "helixdb-initialized" {
+        #   buildInputs = [ helix-cli pkgs.docker pkgs.coreutils ];
+        #   preferLocalBuild = true;
+        #   allowSubstitutes = false;
+        # } ''
+        #   mkdir -p $out/data
+        #   cd ${helixdb-project}/project
+        #
+        #   echo "Building HelixDB instance..."
+        #   ${helix-cli}/bin/helix build prod --output-dir $out/data
+        #
+        #   echo "✓ HelixDB instance built at $out/data"
+        # '';
 
       in {
         # ============================================================
