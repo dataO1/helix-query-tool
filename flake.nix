@@ -424,18 +424,16 @@
 
                     chown -R helixdb:helixdb db
 
-                    echo "Building HelixDB project..."
-                    ${self.packages.${system}.helix-cli}/bin/helix build prod
-                    # Pushing project
-                    echo "Pushing HelixDB project..."
-                    ${self.packages.${system}.helix-cli}/bin/helix push prod
-
                     # # Validate project
-                    # echo "Validating HelixDB project..."
-                    # ${self.packages.${system}.helix-cli}/bin/helix check prod
-
+                    echo "Building and deploying HelixDB project..."
+                    ${self.packages.${system}.helix-cli}/bin/helix check prod && \
+                    # Building project
+                    ${self.packages.${system}.helix-cli}/bin/helix build prod && \
+                    # Pushing project
+                    ${self.packages.${system}.helix-cli}/bin/helix push prod && \
+                    # Starting project
+                    ${self.packages.${system}.helix-cli}/bin/helix start prod && \
                     echo "✓ HelixDB project initialized at $out/project"
-                    ${self.packages.${system}.helix-cli}/bin/helix start prod
                   '';
 
                   serviceConfig = {
