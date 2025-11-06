@@ -18,7 +18,8 @@ import fnmatch
 from dataclasses import dataclass
 
 try:
-    from helix import Client, Chunk
+    import helix
+    from helix.client import Client
 except ImportError:
     print("Error: helix-py is not installed. Install with: pip install helix-py")
     sys.exit(1)
@@ -44,8 +45,8 @@ class HelixIndexer:
 
     def __init__(self, host: str = "localhost", port: int = 6969):
         try:
-            self.client = Client(host=host, port=port, local=False)
-            self.client.is_connected()  # Test connection
+            # Connect to HelixDB instance
+            self.client = Client(host=host, port=port, local=False, verbose=True)
             logging.info(f"✅ Connected to HelixDB at {host}:{port}")
         except Exception as e:
             logging.error(f"❌ Failed to connect to HelixDB: {e}")
@@ -96,7 +97,8 @@ class HelixIndexer:
     def health_check(self) -> bool:
         """Check if HelixDB is healthy"""
         try:
-            self.client.is_connected()
+            # Test connection
+            self.client.query("GetHealth", {})
             return True
         except Exception:
             return False
