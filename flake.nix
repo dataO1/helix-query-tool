@@ -259,29 +259,6 @@
           ${builtins.readFile ./src/helix_search.py}
           EOF
           chmod +x $out/bin/helix-search
-          '';
-
-        # Base queries file within the repo
-        baseQueries = ./queries.hx;
-
-        # Optional extra queries file from NixOS config
-        extraQueriesFile = let
-          file = self.nixosModules.${system}.default.config.services.helixdb.extraQueriesFile;
-        in
-          if file == null then null
-          else if lib.pathExists file then file else null;
-
-        combinedQueries = pkgs.runCommand "combined-queries.hx" {
-          buildInputs = [ pkgs.coreutils ];
-        } ''
-          if [ -f ${baseQueries} ]; then
-            cat ${baseQueries} > $out
-          else
-            touch $out
-          fi
-          if [ -n "${extraQueriesFile}" ] && [ -f "${extraQueriesFile}" ]; then
-            cat "${extraQueriesFile}" >> $out
-          fi
         '';
 
         # ============================================================
@@ -329,11 +306,7 @@
             else
               echo "ERROR: helix-container binary not found at $BIN_PATH"
               exit 1
-              fi
-
-            # Copy combined queries as static file in package
-            mkdir -p $out/etc/helix-db
-            cp ${combinedQueries} $out/etc/helix-db/queries.hx
+            fi
 
             runHook postInstall
           '';
@@ -421,6 +394,25 @@
           let
             cfg = config.services.helix-indexer;
             helixdbCfg = config.services.helixdb;
+
+           # Path to base queries file in repo
+            baseQueriesPath = ./queries.hx;
+
+            # Combine base queries with optional extra queries
+            combinedQueriesFile = pkgs.runCommand "combined-queries.hx" {
+              buildInputs = [ pkgs.coreutils ];
+            } ''
+              # Always start with base queries
+              cat ${baseQueriesPath} > $out
+
+              # If extra queries file is provided, append it
+              ${lib.optionalString (cfg.extraQueriesFile != null) ''
+                cat ${cfg.extraQueriesFile} >> $out
+              ''}
+            '';
+
+            # Runtime config directory for HelixDB
+            helixdbConfigDir = "/etc/helixdb";
           in {
             options.services.helixdb = {
               enable = lib.mkEnableOption "HelixDB vector-graph database service";
@@ -496,6 +488,10 @@
               (lib.mkIf helixdbCfg.enable {
                 environment.systemPackages = [ self.packages.${system}.helixdb ];
 
+              systemd.tmpfiles.rules = [
+                "d ${helixdbConfigDir} 0755 helixdb helixdb"
+                "C ${helixdbConfigDir}/queries.hx 0644 helixdb helixdb - ${combinedQueriesFile}" ];
+
                 users.users.helixdb = {
                   isSystemUser = true;
                   group = "helixdb";
@@ -519,7 +515,7 @@
                         --port ${toString helixdbCfg.port} \
                         --data ${helixdbCfg.dataDir} \
                         --log-level ${helixdbCfg.logLevel} \
-                        --queries ${self.packages.${system}.helixdb}/etc/helix-db/queries.hx
+                        --queries ${helixdbConfigDir}/queries.hx
                     '';
 
                     Restart = "always";
@@ -676,7 +672,6 @@
               })
             ];
           };
-
       }
     );
 }
