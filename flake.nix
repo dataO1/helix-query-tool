@@ -324,6 +324,13 @@
             ${builtins.readFile ./extra-queries.hx}
           ''}
           HX
+          # Initiating project
+          echo "Initiating HelixDB project..."
+          ${helix-cli}/bin/helix init local --name prod
+
+          # Pushing project
+          echo "Initiating HelixDB project..."
+          ${helix-cli}/bin/helix push prod
 
           # Validate project
           echo "Validating HelixDB project..."
