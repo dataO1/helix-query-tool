@@ -268,80 +268,6 @@
           };
         };
 
-        # ============================================================
-        # Build HelixDB Project (declarative initialization)
-        # Combines base queries + optional extra queries
-        # ============================================================
-        helixdb-project = pkgs.runCommand "helixdb-project" {
-          buildInputs = [ helix-cli pkgs.coreutils ];
-        } ''
-          # Disable telemetry to avoid permission issues in sandbox
-          export HELIX_TELEMETRY=off
-          export HELIX_METRICS=off
-          export HOME=$TMPDIR
-
-          # Create reproducible project directory
-          mkdir -p $out/project
-          cd $out/project
-
-          # Create helix.toml configuration
-          cat > helix.toml << 'TOML'
-          [project]
-          name = "helix-indexer"
-          version = "1.0.0"
-
-          [instances.prod]
-          build_mode = "release"
-          mcp = true
-          bm25 = true
-          embedding_model = "text-embedding-ada-002"
-          db_max_size_gb = 10
-
-          [instances.prod.vector]
-          m = 16
-          ef_construction = 128
-          ef_search = 768
-          TOML
-
-          # Create schema.hx (minimal schema for flexible indexing)
-          cat > schema.hx << 'HX'
-          // Flexible document schema for file indexing
-          N::Document {
-            INDEX filepath: String,
-            content: String,
-            filetype: String,
-            metadata: Json,
-            created_at: Date DEFAULT NOW
-          }
-          HX
-
-          # Create combined queries file
-          mkdir -p queries
-          cat > queries/queries.hx << 'HX'
-          ${builtins.readFile ./queries.hx}
-
-          ${lib.optionalString (builtins.pathExists ./extra-queries.hx) ''
-            ${builtins.readFile ./extra-queries.hx}
-          ''}
-          HX
-          # Initiating project
-          echo "Initiating HelixDB project..."
-          ${helix-cli}/bin/helix init local --name prod > /dev/null 2>&1 || true
-
-          echo "Adding HelixDB project..."
-          ${helix-cli}/bin/helix add prod > /dev/null 2>&1 || true
-
-          # # Validate project
-          # echo "Validating HelixDB project..."
-          # ${helix-cli}/bin/helix check prod
-
-          # Pushing project
-          echo "Pushing HelixDB project..."
-          ${helix-cli}/bin/helix push prod
-
-          echo "✓ HelixDB project initialized at $out/project"
-        '';
-
         # # ============================================================
         # # Initialize HelixDB Data Directory
         # # Run helix build to prepare the instance
@@ -367,7 +293,7 @@
         packages = {
           helix-cli = helix-cli;
           helixdb-runtime = helixdb-runtime;
-          helixdb-project = helixdb-project;
+          # helixdb-project = helixdb-project;
           helix-py = helix-py-pkg;
           chonkie = chonkie-pkg;
           google-genai = google-genai-pkg;
@@ -471,7 +397,52 @@
                     Group = "helixdb";
 
                     ExecStart = ''
-                      ${self.packages.${system}.helix-cli}/bin/helix start prod'';
+                      # Disable telemetry to avoid permission issues in sandbox
+                      export HELIX_TELEMETRY=off
+                      export HELIX_METRICS=off
+                      export HOME=$TMPDIR
+
+                      # Create reproducible project directory
+                      mkdir -p $out/project
+                      cd $out/project
+
+                      # Create helix.toml configuration
+                      cat > helix.toml << 'TOML'
+                      ${builtins.readFile ./helix.toml}
+                      TOML
+
+                      # Create schema.hx (minimal schema for flexible indexing)
+                      cat > schema.hx << 'HX'
+                      ${builtins.readFile ./schema.hx}
+                      HX
+
+                      # Create combined queries file
+                      mkdir -p queries
+                      cat > queries/queries.hx << 'HX'
+                      ${builtins.readFile ./queries.hx}
+
+                      ${lib.optionalString (builtins.pathExists ./extra-queries.hx) ''
+                        ${builtins.readFile ./extra-queries.hx}
+                      ''}
+                      HX
+                      # Initiating project
+                      echo "Initiating HelixDB project..."
+                      ${self.packages.${system}.helix-cli}/bin/helix init local --name prod > /dev/null 2>&1 || true
+
+                      echo "Adding HelixDB project..."
+                      ${self.packages.${system}.helix-cli}/bin/helix add prod > /dev/null 2>&1 || true
+
+                      # # Validate project
+                      # echo "Validating HelixDB project..."
+                      # ${self.packages.${system}.helix-cli}/bin/helix check prod
+
+                      # Pushing project
+                      echo "Pushing HelixDB project..."
+                      ${self.packages.${system}.helix-cli}/bin/helix push prod
+
+                      echo "✓ HelixDB project initialized at $out/project"
+                      ${self.packages.${system}.helix-cli}/bin/helix start prod
+                    '';
 
                     Restart = "always";
                     RestartSec = "10s";
