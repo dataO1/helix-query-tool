@@ -230,8 +230,8 @@
             lockFile = "${helix-db-src}/Cargo.lock";
           };
 
-          nativeBuildInputs = with pkgs; [ pkg-config  setuptools];
-          buildInputs = with pkgs; [ openssl  setuptools];
+          nativeBuildInputs = with pkgs; [ pkg-config ];
+          buildInputs = with pkgs; [ openssl ];
 
           doCheck = false;
 
