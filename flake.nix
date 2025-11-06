@@ -399,17 +399,20 @@
                     cd ${cfg.dataDir}
 
                     # Create helix.toml configuration
+                    # Initiating project
+                    echo "Initiating HelixDB project..."
+                    ${self.packages.${system}.helix-cli}/bin/helix init local --name prod > /dev/null 2>&1 || true
+
                     cat > helix.toml << 'TOML'
                     ${builtins.readFile ./helix.toml}
                     TOML
 
                     # Create schema.hx (minimal schema for flexible indexing)
-                    cat > schema.hx << 'HX'
+                    cat > db/schema.hx << 'HX'
                     ${builtins.readFile ./schema.hx}
                     HX
 
                     # Create combined queries file
-                    mkdir -p queries
                     cat > queries/queries.hx << 'HX'
                     ${builtins.readFile ./queries.hx}
 
@@ -417,21 +420,17 @@
                       ${builtins.readFile ./extra-queries.hx}
                     ''}
                     HX
-                    # Initiating project
-                    echo "Initiating HelixDB project..."
-                    ${self.packages.${system}.helix-cli}/bin/helix init local --name prod > /dev/null 2>&1 || true
 
-                    echo "Adding HelixDB project..."
-                    ${self.packages.${system}.helix-cli}/bin/helix add prod > /dev/null 2>&1 || true
-
-                    # # Validate project
-                    # echo "Validating HelixDB project..."
-                    # ${self.packages.${system}.helix-cli}/bin/helix check prod
+                    echo "Building HelixDB project..."
+                    ${self.packages.${system}.helix-cli}/bin/helix build prod > /dev/null 2>&1 || true
 
                     # Pushing project
                     echo "Pushing HelixDB project..."
                     ${self.packages.${system}.helix-cli}/bin/helix push prod
 
+                    # # Validate project
+                    # echo "Validating HelixDB project..."
+                    # ${self.packages.${system}.helix-cli}/bin/helix check prod
 
                     echo "✓ HelixDB project initialized at $out/project"
                     ${self.packages.${system}.helix-cli}/bin/helix start prod
