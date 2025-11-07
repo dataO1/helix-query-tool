@@ -513,10 +513,10 @@
                     StateDirectory = "helix-db";
                     StateDirectoryMode = "0700";
                     WorkingDirectory = cfg.dataDir;
-
-                    ProtectSystem = "strict";
-                    ProtectHome = true;
-                    NoNewPrivileges = true;
+                    PermissionsStartOnly = true; # Allows the initial start command to run as root if needed
+                    # ProtectSystem = "strict";
+                    # ProtectHome = true;
+                    # NoNewPrivileges = true;
                     LimitNOFILE = 65536;
                   };
 
