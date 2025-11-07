@@ -441,7 +441,7 @@
                     ports = [ "${cfg.host}:${toString cfg.port}:6969" ];
 
                     volumes = [
-                      "${cfg.dataDir}/data:/data"
+                      "${cfg.dataDir}/data:app/data"
                     ];
 
                     environment = {
