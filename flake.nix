@@ -13,15 +13,15 @@
       inputs.nixpkgs.follows = "nixpkgs";
     };
     helix-db-src = {
-      url = "github:HelixDB/helix-db";
+      url = "github:HelixDB/helix-db/v2.1.0";
       flake = false;
     };
     helix-py-src = {
-      url = "github:HelixDB/helix-py";
+      url = "github:HelixDB/helix-py/v0.2.30";
       flake = false;
     };
     google-genai-src = {
-      url = "github:googleapis/python-genai";
+      url = "github:googleapis/python-genai/v1.49.0";
       flake = false;
     };
   };
