@@ -135,6 +135,8 @@
           mkdir -p $out/bin
           cat > $out/bin/helix-file-indexer << 'EOF'
           #!${pythonEnv}/bin/python3
+          import sys
+          sys.path.insert(0, '${pythonEnv}/${pythonEnv.python.sitePackages}')
           ${builtins.readFile ./src/helix_indexer.py}
           EOF
           chmod +x $out/bin/helix-file-indexer
@@ -147,6 +149,8 @@
           mkdir -p $out/bin
           cat > $out/bin/helix-mcp-server << 'EOF'
           #!${pythonEnv}/bin/python3
+          import sys
+          sys.path.insert(0, '${pythonEnv}/${pythonEnv.python.sitePackages}')
           ${builtins.readFile ./src/helix_mcp_server.py}
           EOF
           chmod +x $out/bin/helix-mcp-server
@@ -159,6 +163,8 @@
           mkdir -p $out/bin
           cat > $out/bin/helix-search << 'EOF'
           #!${pythonEnv}/bin/python3
+          import sys
+          sys.path.insert(0, '${pythonEnv}/${pythonEnv.python.sitePackages}')
           ${builtins.readFile ./src/helix_search.py}
           EOF
           chmod +x $out/bin/helix-search
@@ -252,7 +258,7 @@
               cp "$BIN_PATH" "$out/bin/helix-container"
               chmod +x "$out/bin/helix-container"
               echo "✓ HelixDB runtime installed"
-            else
+            else  export PYTHONPATH="${pythonEnv}/${pythonEnv.python.sitePackages}:$PYTHONPATH"
               echo "ERROR: helix-container not found"
               exit 1
             fi
