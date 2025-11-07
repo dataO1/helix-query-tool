@@ -21,15 +21,16 @@
     "google-genai-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1762393066,
-        "narHash": "sha256-MDJv9q/s1GTw/H4YAPGL01RYk8G8+BpVmX0JLccnvlM=",
+        "lastModified": 1762381730,
+        "narHash": "sha256-dmqVU0NwZ3mgvQzsH7MTiT9Cd3zqJWB1XDOFViSdsnk=",
         "owner": "googleapis",
         "repo": "python-genai",
-        "rev": "bd10082d2086a85f18b4d0391f47e21bb014d4cd",
+        "rev": "a02cd0eb49229bda59a07c0a2b78bc7e598bb456",
         "type": "github"
       },
       "original": {
         "owner": "googleapis",
+        "ref": "v1.49.0",
         "repo": "python-genai",
         "type": "github"
       }
@@ -37,15 +38,16 @@
     "helix-db-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1760344888,
-        "narHash": "sha256-aKM4n9e2L4YNU9ivr+2na/Uh+WThoALmETrL1L5dSfc=",
+        "lastModified": 1762501703,
+        "narHash": "sha256-ucDo8jvVBM0KmCTSEbduBYHJSHAJljJQg1+HEQvJ7pU=",
         "owner": "HelixDB",
         "repo": "helix-db",
-        "rev": "1a2c03069d87abea99b80c1cbbdbf10bf047ebce",
+        "rev": "d0086c96c74c447b1be69bb9c6b346ea286156d9",
         "type": "github"
       },
       "original": {
         "owner": "HelixDB",
+        "ref": "v2.1.0",
         "repo": "helix-db",
         "type": "github"
       }
@@ -53,15 +55,16 @@
     "helix-py-src": {
       "flake": false,
       "locked": {
-        "lastModified": 1758912430,
-        "narHash": "sha256-8AHsYop6P++dGpHbEzE3EeJ6+pU7+c7aPcM8EYyoRFs=",
+        "lastModified": 1757791281,
+        "narHash": "sha256-w3vEHF82pshPsjrDsarCE/ve0KNuA64dpXSUZY0Ge80=",
         "owner": "HelixDB",
         "repo": "helix-py",
-        "rev": "977f350be24425626454e5d5dbb98259769e3ad7",
+        "rev": "d55de30d1bfa9b34c85a542158f0f4fc2f219a47",
         "type": "github"
       },
       "original": {
         "owner": "HelixDB",
+        "ref": "v0.2.30",
         "repo": "helix-py",
         "type": "github"
       }

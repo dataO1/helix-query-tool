@@ -223,8 +223,8 @@
             lockFile = "${helix-db-src}/Cargo.lock";
           };
 
-          nativeBuildInputs = with pkgs; [ pkg-config git ];
-          buildInputs = with pkgs; [ openssl git ];
+          nativeBuildInputs = with pkgs; [ pkg-config git helix-container ];
+          buildInputs = with pkgs; [ openssl git  helix-container];
 
           doCheck = false;
 
@@ -266,7 +266,7 @@
         # ============================================================
         # HelixDB Runtime Binary (helix-container)
         # ============================================================
-        helixdb-runtime = pkgs.rustPlatform.buildRustPackage rec {
+        helix-container = pkgs.rustPlatform.buildRustPackage rec {
           pname = "helix-db-runtime";
           version = "2.0.5";
 
@@ -338,7 +338,7 @@
         # ============================================================
         packages = {
           helix-cli = helix-cli;
-          helixdb-runtime = helixdb-runtime;
+          helix-container = helix-container;
           # helixdb-project = helixdb-project;
           helix-py = helix-py-pkg;
           chonkie = chonkie-pkg;
@@ -428,7 +428,7 @@
               (lib.mkIf cfg.enable {
                 environment.systemPackages = [
                   self.packages.${system}.helix-cli
-                  self.packages.${system}.helixdb-runtime
+                  self.packages.${system}.helix-container
                 ];
 
                 # users.users.helixdb = {
