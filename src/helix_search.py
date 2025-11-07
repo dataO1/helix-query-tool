@@ -191,10 +191,10 @@ def stats_command(args, config: SearchConfig):
     print("📊 Indexing Statistics:\n")
     stats = client.get_stats()
     if stats:
-        print(f" • Total documents: {stats.get('total_documents', 'N/A')}")
-        print(f" • Total chunks: {stats.get('total_chunks', 'N/A')}")
-        print(f" • Index size: {stats.get('index_size', 'N/A')}")
-        print(f" • Last updated: {stats.get('last_updated', 'N/A')}")
+        print(f" • Total documents: {stats}")
+        # print(f" • Total chunks: {stats.get('total_chunks', 'N/A')}")
+        # print(f" • Index size: {stats.get('index_size', 'N/A')}")
+        # print(f" • Last updated: {stats.get('last_updated', 'N/A')}")
     else:
         print(" Unable to retrieve statistics")
     print(f" • HelixDB: {config.helix_host}:{config.helix_port}")

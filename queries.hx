@@ -1,3 +1,12 @@
+QUERY add_document (filepath: String, metadata: String, filetype: String, content: String) =>
+    document <- AddV<Document>(content, { 
+        filepath: filepath, 
+        metadata: metadata, 
+        filetype: filetype, 
+        content: content 
+    })
+    RETURN document
+
 // Semantic text search with embedding
 QUERY search_with_text(query: String, limit: I64) =>
   results <- SearchV<Document>(query, limit)

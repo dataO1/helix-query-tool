@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 import fnmatch
 import pyinotify
+import ollama
 from dataclasses import dataclass
 
 try:
@@ -75,9 +76,11 @@ class HelixIndexer:
             }
 
             # Use the built-in add_document query (case-sensitive)
+            embedding = ollama.embeddings(model="nomic-embed-text",
+                                          prompt=content)["embedding"]
             payload = {
                 "filepath": filepath,
-                "content": content,
+                "content": embedding,
                 "filetype": filetype,
                 "metadata": metadata,
             }
