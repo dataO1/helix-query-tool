@@ -224,7 +224,7 @@
           };
 
           nativeBuildInputs = with pkgs; [ pkg-config git helix-container ];
-          buildInputs = with pkgs; [ openssl git  helix-container];
+          buildInputs = with pkgs; [ openssl git helix-container];
 
           doCheck = false;
 
@@ -267,7 +267,7 @@
         # HelixDB Runtime Binary (helix-container)
         # ============================================================
         helix-container = pkgs.rustPlatform.buildRustPackage rec {
-          pname = "helix-db-runtime";
+          pname = "helix-container";
           version = "2.0.5";
 
           src = helix-db-src;
@@ -297,7 +297,7 @@
             if [ -f "$BIN_PATH" ]; then
               cp "$BIN_PATH" "$out/bin/helix-container"
               chmod +x "$out/bin/helix-container"
-              echo "✓ HelixDB runtime installed"
+              echo "✓ Helix-container installed"
             else  export PYTHONPATH="${pythonEnv}/${pythonEnv.python.sitePackages}:$PYTHONPATH"
               echo "ERROR: helix-container not found"
               exit 1
@@ -307,7 +307,7 @@
           '';
 
           meta = with pkgs.lib; {
-            description = "HelixDB runtime container";
+            description = "Helix-container";
             homepage = "https://github.com/HelixDB/helix-db";
             license = licenses.asl20;
             platforms = platforms.unix;
