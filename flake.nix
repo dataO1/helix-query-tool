@@ -448,6 +448,7 @@
                       HELIX_DATA_DIR = "/data";
                       HELIX_PORT = "6969";
                     };
+                    autoRemoveOnStop = false;
 
                     # Restart policy
                     extraOptions = [
