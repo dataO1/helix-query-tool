@@ -1,6 +1,6 @@
 // Semantic text search with embedding
 QUERY search_with_text(query: String, limit: I64) =>
-  results <- SearchV<Document>(Embed(query), limit)
+  results <- SearchV<Document>(query, limit)
   RETURN results
 
 //QUERY search_keyword(keywords: String, limit: I64) =>

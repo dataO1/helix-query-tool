@@ -13,6 +13,8 @@ from pathlib import Path
 from typing import List, Dict, Any, Optional
 import yaml
 from dataclasses import dataclass
+# Use the official SearchWithText query (case-sensitive)
+from sentence_transformers import SentenceTransformer
 
 from helix.client import Client
 
@@ -40,8 +42,10 @@ class HelixSearchClient:
     def search(self, query: str, limit: int = 10, filters: Dict[str, Any] = None) -> List[Dict[str, Any]]:
         """Semantic search via backend embeddings/semantic search"""
         try:
-            # Use the official SearchWithText query (case-sensitive)
-            payload = {"query": query, "limit": limit}
+
+            model = SentenceTransformer("Qwen/Qwen3-Embedding-0.6B")
+            embedding = model.encode(query).astype(float).tolist()
+            payload = {"query": embedding, "limit": limit}
             results = self.client.query("search_with_text", payload)
             # Post-filter if needed
             if filters:
