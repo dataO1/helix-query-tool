@@ -295,10 +295,37 @@
           '';
         };
 
-        # ============================================================
-        # Build Docker image declaratively using pkgs.dockerTools
-        # No manual docker build steps required!
-        # ============================================================
+        # Create entrypoint script for HelixDB initialization
+        helixdb-entrypoint = pkgs.writeShellScript "entrypoint.sh" ''
+          #!/usr/bin/env sh
+          set -e
+
+          echo "HelixDB Container Starting..."
+          echo "HELIX_DATA_DIR: $HELIX_DATA_DIR"
+          echo "Working directory: $(pwd)"
+
+          # Ensure /data exists and is writable
+          mkdir -p "$HELIX_DATA_DIR" 2>/dev/null || true
+
+          # Check if .helix directory exists (project initialized)
+          if [ ! -d "$HELIX_DATA_DIR/.helix" ]; then
+            echo "Initializing HelixDB project structure..."
+            mkdir -p "$HELIX_DATA_DIR/.helix"
+            mkdir -p "$HELIX_DATA_DIR/.helix/prod"
+          fi
+
+          # List available configuration
+          echo "Configuration files found:"
+          ls -la /app/helix.toml 2>/dev/null || echo "  helix.toml not found"
+          ls -la /app/db/ 2>/dev/null || echo "  db/ directory not found"
+
+          echo "Data directory contents:"
+          ls -la "$HELIX_DATA_DIR" || true
+
+          echo "Starting helix-container..."
+          exec /usr/local/bin/helix-container
+        '';
+
         helixdb-docker-image = pkgs.dockerTools.buildLayeredImage {
           name = "helix-dev";
           tag = "latest";
@@ -310,31 +337,37 @@
           ];
 
           config = {
-            Cmd = [ "${helixdb-runtime}/bin/helix-container" ];
-            ExposedPorts = {
-              "6969/tcp" = {};
-            };
+            Entrypoint = [ "${helixdb-entrypoint}" ];  # Use entrypoint script
             Env = [
-              "HELIX_DATA_DIR=/data"        # IMPORTANT: Set this!
+              "HELIX_DATA_DIR=/data"
               "HELIX_PORT=6969"
+              "HELIX_TELEMETRY=off"
             ];
             WorkingDir = "/app";
             Volumes = {
               "/data" = {};
             };
+            ExposedPorts = {
+              "6969/tcp" = {};
+            };
           };
 
           extraCommands = ''
             # Create application directory structure
-            mkdir -p app/db
+            mkdir -p /app/db
 
             # Copy configs (baked into image)
-            cp ${./helix.toml} app/helix.toml
-            cp ${./schema.hx} app/db/schema.hx
-            cp ${./queries.hx} app/db/queries.hx
+            cp ${./helix.toml} /app/helix.toml
+            cp ${./schema.hx} /app/db/schema.hx
+            cp ${./queries.hx} /app/db/queries.hx
 
-            # Create /data directory with proper permissions for volume mount
-            mkdir -p data
+            # Copy entrypoint script
+            mkdir -p bin
+            cp ${helixdb-entrypoint} bin/entrypoint.sh
+            chmod +x bin/entrypoint.sh
+
+            # Create /data directory with proper permissions
+            mkdir -p /app/data
             chmod 777 data
           '';
         };
@@ -446,7 +479,7 @@
                     ];
 
                     environment = {
-                      HELIX_DATA_DIR = "/data";
+                      HELIX_DATA_DIR = "/app/data";
                       HELIX_PORT = "6969";
                     };
                     autoRemoveOnStop = false;
