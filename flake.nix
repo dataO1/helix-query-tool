@@ -36,6 +36,46 @@
         lib = pkgs.lib;
 
         # ============================================================
+        # Build voyageai from PyPI (not available in nixpkgs)
+        # Required by helix-py for semantic chunking
+        # ============================================================
+        voyageai-pkg = pkgs.python3.pkgs.buildPythonPackage {
+          pname = "voyageai";
+          version = "0.3.5";
+          format = "pyproject";
+          src = pkgs.fetchPypi {
+            pname = "voyageai";
+            version = "0.3.5";
+            sha256 = "sha256-lj4NcWEa9Sn6DkltsjKk9mC19zvOevGrKIp/Wd91Eto=";
+          };
+
+          nativeBuildInputs = with pkgs.python3.pkgs; [
+            setuptools
+            wheel
+            poetry-core
+            aiohttp
+            aiolimiter
+            langchain-text-splitters
+            numpy
+            pillow
+            pydantic
+            requests
+            tenacity
+            tokenizers
+          ];
+
+          propagatedBuildInputs = with pkgs.python3.pkgs; [
+          ];
+
+          doCheck = false;
+
+          meta = with pkgs.lib; {
+            description = "Voyage AI provides cutting-edge embedding and rerankers.";
+            homepage = "https://pypi.org/project/voyageai/";
+            license = licenses.mit;
+          };
+        };
+        # ============================================================
         # Build chonkie from PyPI
         # ============================================================
         chonkie-pkg = pkgs.python3.pkgs.buildPythonPackage {
@@ -125,7 +165,7 @@
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
           helix-py-pkg pyinotify requests pyyaml watchdog tqdm python-dotenv
           numpy pyarrow chonkie-pkg loguru markitdown tokenizers fastmcp
-          google-genai-pkg google-api-core google-auth tenacity
+          google-genai-pkg google-api-core google-auth tenacity voyageai-pkg
         ]);
 
         helix-indexer-pkg = pkgs.writeShellScriptBin "helix-file-indexer" ''
