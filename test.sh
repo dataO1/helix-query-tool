@@ -18,8 +18,8 @@ mkdir -p test-data
 docker run -d \
   --name test-helix \
   -p 6969:6969 \
-  -v $(pwd)/test-data:/data \
-  -e HELIX_DATA_DIR=/data \
+  -v $(pwd)/test-data:/app \
+  -e HELIX_DATA_DIR=/app \
   helix-dev:latest
 echo "✓ Container started"
 
@@ -32,11 +32,9 @@ curl http://localhost:6969/health || echo "Health check failed"
 echo -e "\n=== Testing search ==="
 helix-search search "test" || echo "Search test failed"
 
-# echo -e "\n=== Viewing logs ==="
-# docker logs test-helix -f
+echo -e "\n=== Viewing logs ==="
+docker logs test-helix -f
 # Function to perform the cleanup steps
-#
-#
 cleanup() {
     echo -e "\n=== Cleanup ==="
     docker stop test-helix

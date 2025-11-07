@@ -282,12 +282,12 @@
             RUN chmod +x /usr/local/bin/helix-container
 
             # Copy helix configuration files (baked into image for reproducibility)
-            COPY ${./helix.toml} /app/helix.toml
-            COPY ${./schema.hx} /app/schema.hx
-            COPY ${./queries.hx} /app/queries.hx
+            # COPY ${./helix.toml} /app/helix.toml
+            # COPY ${./schema.hx} /app/schema.hx
+            # COPY ${./queries.hx} /app/queries.hx
 
-            # Create data directory for persistence
-            RUN mkdir -p /data
+            # # Create data directory for persistence
+            # RUN mkdir -p data
 
             EXPOSE 6969
 
@@ -298,32 +298,23 @@
         # Create entrypoint script for HelixDB initialization
         helixdb-entrypoint = pkgs.writeShellScript "entrypoint.sh" ''
           #!/usr/bin/env sh
-          set -e
-
-          echo "HelixDB Container Starting..."
+          echo "Starting HelixDB..."
           echo "HELIX_DATA_DIR: $HELIX_DATA_DIR"
-          echo "Working directory: $(pwd)"
+          # mkdir -p "$HELIX_DATA_DIR/user"
+          # Create application directory structure
+          mkdir -p /app/db
+          # mkdir -p app/data/user  # HelixDB needs this
 
-          # Ensure /data exists and is writable
-          mkdir -p "$HELIX_DATA_DIR" 2>/dev/null || true
+          # Copy configs to /app
+          cp ${./helix.toml} /app/helix.toml
+          cp ${./schema.hx} /app/db/schema.hx
+          cp ${./queries.hx} /app/db/queries.hx
 
-          # Check if .helix directory exists (project initialized)
-          if [ ! -d "$HELIX_DATA_DIR/.helix" ]; then
-            echo "Initializing HelixDB project structure..."
-            mkdir -p "$HELIX_DATA_DIR/.helix"
-            mkdir -p "$HELIX_DATA_DIR/.helix/prod"
-          fi
-
-          # List available configuration
-          echo "Configuration files found:"
-          ls -la /app/helix.toml 2>/dev/null || echo "  helix.toml not found"
-          ls -la /app/db/ 2>/dev/null || echo "  db/ directory not found"
-
-          echo "Data directory contents:"
-          ls -la "$HELIX_DATA_DIR" || true
-
-          echo "Starting helix-container..."
-          exec /usr/local/bin/helix-container
+          # Copy binary
+          mkdir -p usr/local/bin
+          cp ${helixdb-runtime}/bin/helix-container usr/local/bin/helix-container
+          chmod +x usr/local/bin/helix-container
+          exec usr/local/bin/helix-container
         '';
 
         helixdb-docker-image = pkgs.dockerTools.buildLayeredImage {
@@ -337,39 +328,36 @@
           ];
 
           config = {
-            Entrypoint = [ "${helixdb-entrypoint}" ];  # Use entrypoint script
+            Entrypoint = [ "${helixdb-entrypoint}" ];
             Env = [
-              "HELIX_DATA_DIR=/data"
+              "HELIX_DATA_DIR=/app"  # Changed from /data to /app
               "HELIX_PORT=6969"
               "HELIX_TELEMETRY=off"
             ];
-            WorkingDir = "/app";
+            # WorkingDir = "/app";
             Volumes = {
-              "/data" = {};
+              "/app" = {};
             };
             ExposedPorts = {
               "6969/tcp" = {};
             };
           };
 
-          extraCommands = ''
-            # Create application directory structure
-            mkdir -p app/db
-
-            # Copy configs (baked into image)
-            cp ${./helix.toml} app/helix.toml
-            cp ${./schema.hx} app/db/schema.hx
-            cp ${./queries.hx} app/db/queries.hx
-
-            # Copy entrypoint script
-            mkdir -p bin
-            cp ${helixdb-entrypoint} bin/entrypoint.sh
-            chmod +x bin/entrypoint.sh
-
-            # Create /data directory with proper permissions
-            mkdir -p data
-            chmod 777 data
-          '';
+        #   extraCommands = ''
+        #     # Create application directory structure
+        #     # mkdir -p app/db
+        #     # mkdir -p app/data/user  # HelixDB needs this
+        #
+        #     # Copy configs to /app
+        #     cp ${./helix.toml} app/helix.toml
+        #     cp ${./schema.hx} app/db/schema.hx
+        #     cp ${./queries.hx} app/db/queries.hx
+        #
+        #     # Copy binary
+        #     mkdir -p usr/local/bin
+        #     cp ${helixdb-runtime}/bin/helix-container usr/local/bin/helix-container
+        #     chmod +x usr/local/bin/helix-container
+        #   '';
         };
 
       in {
@@ -475,11 +463,11 @@
                     ports = [ "${cfg.host}:${toString cfg.port}:6969" ];
 
                     volumes = [
-                      "${cfg.dataDir}/data:/app/data"
+                      "${cfg.dataDir}/data:/app"
                     ];
 
                     environment = {
-                      HELIX_DATA_DIR = "/app/data";
+                      HELIX_DATA_DIR = "/app";
                       HELIX_PORT = "6969";
                     };
                     autoRemoveOnStop = false;
@@ -493,15 +481,15 @@
                 # Create and initialize data directory
                 # Initialize data directory with proper permissions
                 system.activationScripts.helixdb-init = lib.stringAfter [ "users" ] ''
-                  mkdir -p ${cfg.dataDir}/data
+                  mkdir -p ${cfg.dataDir}
 
                   # Make it writable by docker container
                   # Option A: If using user namespacing (recommended)
-                  chmod 777 ${cfg.dataDir}/data
+                  chmod 777 ${cfg.dataDir}
 
                   # Option B: If running with explicit uid (less common)
-                  # chown 0:0 ${cfg.dataDir}/data
-                  # chmod 755 ${cfg.dataDir}/data
+                  # chown 0:0 ${cfg.dataDir}
+                  # chmod 755 ${cfg.dataDir}
                 '';
 
                 networking.firewall.allowedTCPPorts =
