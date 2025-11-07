@@ -163,9 +163,35 @@
         # Python environment for tools
         # ============================================================
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
-          helix-py-pkg pyinotify requests pyyaml watchdog tqdm python-dotenv
-          numpy pyarrow chonkie-pkg loguru markitdown tokenizers fastmcp
-          google-genai-pkg google-api-core google-auth tenacity voyageai-pkg
+          helix-py-pkg
+          pyinotify
+          requests
+          pyyaml
+          watchdog
+          tqdm
+          python-dotenv
+          numpy
+          pyarrow
+          chonkie-pkg
+          loguru
+          markitdown
+          tokenizers
+          fastmcp
+          google-genai-pkg
+          google-api-core
+          google-auth
+          tenacity
+          voyageai-pkg
+          langchain-text-splitters
+          aiohttp
+          aiolimiter
+          langchain-text-splitters
+          numpy
+          pillow
+          pydantic
+          requests
+          tenacity
+          tokenizers
         ]);
 
         helix-indexer-pkg = pkgs.writeShellScriptBin "helix-file-indexer" ''
