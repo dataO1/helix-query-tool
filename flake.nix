@@ -125,49 +125,22 @@
         pythonEnv = pkgs.python3.withPackages (ps: with ps; [
           helix-py-pkg pyinotify requests pyyaml watchdog tqdm python-dotenv
           numpy pyarrow chonkie-pkg loguru markitdown tokenizers fastmcp
-          google-genai-pkg google-api-core google-auth
+          google-genai-pkg google-api-core google-auth tenacity
         ]);
 
-        # ============================================================
-        # Helix Indexer Package
-        # ============================================================
-        helix-indexer-pkg = pkgs.runCommand "helix-indexer" {} ''
-          mkdir -p $out/bin
-          cat > $out/bin/helix-file-indexer << 'EOF'
-          #!${pythonEnv}/bin/python3
-          import sys
-          sys.path.insert(0, '${pythonEnv}/${pythonEnv.python.sitePackages}')
-          ${builtins.readFile ./src/helix_indexer.py}
-          EOF
-          chmod +x $out/bin/helix-file-indexer
+        helix-indexer-pkg = pkgs.writeShellScriptBin "helix-file-indexer" ''
+          export PYTHONPATH="${pythonEnv}/${pythonEnv.python.sitePackages}:$PYTHONPATH"
+          exec ${pythonEnv}/bin/python3 ${./src/helix_indexer.py} "$@"
         '';
 
-        # ============================================================
-        # Helix MCP Server Package
-        # ============================================================
-        helix-mcp-server-pkg = pkgs.runCommand "helix-mcp-server" {} ''
-          mkdir -p $out/bin
-          cat > $out/bin/helix-mcp-server << 'EOF'
-          #!${pythonEnv}/bin/python3
-          import sys
-          sys.path.insert(0, '${pythonEnv}/${pythonEnv.python.sitePackages}')
-          ${builtins.readFile ./src/helix_mcp_server.py}
-          EOF
-          chmod +x $out/bin/helix-mcp-server
+        helix-search-tool-pkg = pkgs.writeShellScriptBin "helix-search" ''
+          export PYTHONPATH="${pythonEnv}/${pythonEnv.python.sitePackages}:$PYTHONPATH"
+          exec ${pythonEnv}/bin/python3 ${./src/helix_search.py} "$@"
         '';
 
-        # ============================================================
-        # Helix Search Tool Package
-        # ============================================================
-        helix-search-tool-pkg = pkgs.runCommand "helix-search-tool" {} ''
-          mkdir -p $out/bin
-          cat > $out/bin/helix-search << 'EOF'
-          #!${pythonEnv}/bin/python3
-          import sys
-          sys.path.insert(0, '${pythonEnv}/${pythonEnv.python.sitePackages}')
-          ${builtins.readFile ./src/helix_search.py}
-          EOF
-          chmod +x $out/bin/helix-search
+        helix-mcp-server-pkg = pkgs.writeShellScriptBin "helix-mcp-server" ''
+          export PYTHONPATH="${pythonEnv}/${pythonEnv.python.sitePackages}:$PYTHONPATH"
+          exec ${pythonEnv}/bin/python3 ${./src/helix_mcp_server.py} "$@"
         '';
 
         # ============================================================

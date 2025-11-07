@@ -14,11 +14,7 @@ from typing import List, Dict, Any, Optional
 import yaml
 from dataclasses import dataclass
 
-try:
-    from helix.client import Client
-except ImportError:
-    print("Error: helix-py is not installed. Install with: pip install helix-py")
-    sys.exit(1)
+from helix.client import Client
 
 @dataclass
 class SearchConfig:
