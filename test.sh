@@ -30,12 +30,21 @@ echo -e "\n=== Testing health endpoint ==="
 curl http://localhost:6969/health || echo "Health check failed"
 
 echo -e "\n=== Testing search ==="
-helix-search "test" || echo "Search test failed"
+helix-search search "test" || echo "Search test failed"
 
-echo -e "\n=== Viewing logs ==="
-docker logs test-helix | tail -20
+# echo -e "\n=== Viewing logs ==="
+# docker logs test-helix -f
+# Function to perform the cleanup steps
+#
+#
+cleanup() {
+    echo -e "\n=== Cleanup ==="
+    docker stop test-helix
+    docker rm test-helix
+    echo "✓ Test complete!"
+    exit 1  # Exit the script after cleanup, using a non-zero exit code (e.g., 1)
+  }
 
-echo -e "\n=== Cleanup ==="
-docker stop test-helix
-docker rm test-helix
-echo "✓ Test complete!"
+trap cleanup SIGINT
+
+echo "Script is running. Press Ctrl+C to interrupt."

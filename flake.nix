@@ -295,7 +295,7 @@
           '';
         };
 
-      # ============================================================
+        # ============================================================
         # Build Docker image declaratively using pkgs.dockerTools
         # No manual docker build steps required!
         # ============================================================
@@ -315,7 +315,8 @@
               "6969/tcp" = {};
             };
             Env = [
-              "HELIX_DATA_DIR=/data"
+              "HELIX_DATA_DIR=/data"        # IMPORTANT: Set this!
+              "HELIX_PORT=6969"
             ];
             WorkingDir = "/app";
             Volumes = {
@@ -324,11 +325,17 @@
           };
 
           extraCommands = ''
-            mkdir -p app
+            # Create application directory structure
+            mkdir -p app/db
+
+            # Copy configs (baked into image)
             cp ${./helix.toml} app/helix.toml
-            cp ${./schema.hx} app/schema.hx
-            cp ${./queries.hx} app/queries.hx
+            cp ${./schema.hx} app/db/schema.hx
+            cp ${./queries.hx} app/db/queries.hx
+
+            # Create /data directory with proper permissions for volume mount
             mkdir -p data
+            chmod 777 data
           '';
         };
 
@@ -427,7 +434,6 @@
                   backend = "docker";
                   containers.helixdb = {
                     autoStart = true;
-                    autoRestart = true;
 
                     image = "helix-dev:latest";
                     imageFile = self.packages.${system}.helixdb-docker-image;
@@ -449,6 +455,19 @@
                     ];
                   };
                 };
+                # Create and initialize data directory
+                # Initialize data directory with proper permissions
+                system.activationScripts.helixdb-init = lib.stringAfter [ "users" ] ''
+                  mkdir -p ${cfg.dataDir}/data
+
+                  # Make it writable by docker container
+                  # Option A: If using user namespacing (recommended)
+                  chmod 777 ${cfg.dataDir}/data
+
+                  # Option B: If running with explicit uid (less common)
+                  # chown 0:0 ${cfg.dataDir}/data
+                  # chmod 755 ${cfg.dataDir}/data
+                '';
 
                 networking.firewall.allowedTCPPorts =
                   lib.optionals cfg.openFirewall [ cfg.port ];
