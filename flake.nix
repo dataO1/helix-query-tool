@@ -428,6 +428,7 @@
               (lib.mkIf cfg.enable {
                 # Enable Docker/Podman
                 virtualisation.docker.enable = true;
+                environment.systemPackages = with pkgs; [ffmpeg];
 
                 # Declaratively run the container
                 virtualisation.oci-containers = {
