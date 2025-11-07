@@ -354,12 +354,12 @@
 
           extraCommands = ''
             # Create application directory structure
-            mkdir -p /app/db
+            mkdir -p app/db
 
             # Copy configs (baked into image)
-            cp ${./helix.toml} /app/helix.toml
-            cp ${./schema.hx} /app/db/schema.hx
-            cp ${./queries.hx} /app/db/queries.hx
+            cp ${./helix.toml} app/helix.toml
+            cp ${./schema.hx} app/db/schema.hx
+            cp ${./queries.hx} app/db/queries.hx
 
             # Copy entrypoint script
             mkdir -p bin
@@ -367,7 +367,7 @@
             chmod +x bin/entrypoint.sh
 
             # Create /data directory with proper permissions
-            mkdir -p /app/data
+            mkdir -p data
             chmod 777 data
           '';
         };
