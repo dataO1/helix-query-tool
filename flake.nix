@@ -223,8 +223,8 @@
             lockFile = "${helix-db-src}/Cargo.lock";
           };
 
-          nativeBuildInputs = with pkgs; [ pkg-config ];
-          buildInputs = with pkgs; [ openssl  ];
+          nativeBuildInputs = with pkgs; [ pkg-config git ];
+          buildInputs = with pkgs; [ openssl git ];
 
           doCheck = false;
 
@@ -276,8 +276,8 @@
             lockFile = "${helix-db-src}/Cargo.lock";
           };
 
-          nativeBuildInputs = with pkgs; [ pkg-config ];
-          buildInputs = with pkgs; [ openssl ];
+          nativeBuildInputs = with pkgs; [ pkg-config git ];
+          buildInputs = with pkgs; [ openssl  git];
 
           doCheck = false;
 
@@ -431,12 +431,12 @@
                   self.packages.${system}.helixdb-runtime
                 ];
 
-                users.users.helixdb = {
-                  isSystemUser = true;
-                  group = "helixdb";
-                  home = cfg.dataDir;
-                };
-                users.groups.helixdb = {};
+                # users.users.helixdb = {
+                #   isSystemUser = true;
+                #   group = "helixdb";
+                #   home = cfg.dataDir;
+                # };
+                # users.groups.helixdb = {};
 
                 services.ollama = {
                   enable = true;
@@ -467,7 +467,7 @@
                     cat > helix.toml << 'TOML'
                     ${builtins.readFile ./helix.toml}
                     TOML
-                    chown helixdb:helixdb helix.toml
+                    # chown helixdb:helixdb helix.toml
 
                     # Create schema.hx (minimal schema for flexible indexing)
                     cat > db/schema.hx << 'HX'
@@ -483,7 +483,7 @@
                     ''}
                     HX
 
-                    chown -R helixdb:helixdb db
+                    # chown -R helixdb:helixdb db
 
                     # # Validate project
                     echo "Building and deploying HelixDB project..."
@@ -499,8 +499,8 @@
 
                   serviceConfig = {
                     Type = "simple";
-                    User = "helixdb";
-                    Group = "helixdb";
+                    # User = "helixdb";
+                    # Group = "helixdb";
 
                     # ExecStart = ''
                     # '';
@@ -522,7 +522,7 @@
 
                   preStart = ''
                     mkdir -p ${cfg.dataDir}
-                    chown helixdb:helixdb ${cfg.dataDir}
+                    # chown helixdb:helixdb ${cfg.dataDir}
                     chmod 700 ${cfg.dataDir}
                   '';
                 };
@@ -534,12 +534,12 @@
               (lib.mkIf indexerCfg.enable {
                 environment.systemPackages = [ self.packages.${system}.helix-indexer ];
 
-                users.users.helix-indexer = {
-                  isSystemUser = true;
-                  group = "helix-indexer";
-                  home = "/var/lib/helix-indexer";
-                };
-                users.groups.helix-indexer = {};
+                # users.users.helix-indexer = {
+                #   isSystemUser = true;
+                #   group = "helix-indexer";
+                #   home = "/var/lib/helix-indexer";
+                # };
+                # users.groups.helix-indexer = {};
 
                 systemd.services.helix-indexer = {
                   description = "HelixDB File Indexer";
@@ -549,8 +549,8 @@
 
                   serviceConfig = {
                     Type = "simple";
-                    User = "helix-indexer";
-                    Group = "helix-indexer";
+                    # User = "helix-indexer";
+                    # Group = "helix-indexer";
 
                     ExecStart = "${self.packages.${system}.helix-indexer}/bin/helix-file-indexer";
 
