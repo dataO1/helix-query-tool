@@ -192,6 +192,7 @@
           requests
           tenacity
           tokenizers
+          ollama
         ]);
 
         helix-indexer-pkg = pkgs.writeShellScriptBin "helix-file-indexer" ''
@@ -399,6 +400,12 @@
                 default = false;
                 description = "Open firewall port for HelixDB";
               };
+
+              gpuAcceleration = lib.mkOption {
+                type = lib.types.bool;
+                default = false;
+                description = "Open firewall port for HelixDB";
+              };
             };
 
             options.services.helix-indexer = {
@@ -430,6 +437,15 @@
                   home = cfg.dataDir;
                 };
                 users.groups.helixdb = {};
+
+                services.ollama = {
+                  enable = true;
+                  acceleration = cfg.gpuAcceleration;
+                };
+
+                  # host = cfg.ollamaHost;
+                  # port = cfg.ollamaPort;
+                  # loadModels = lib.attrValues cfg.models;
 
                 systemd.services.helixdb = {
                   description = "HelixDB via CLI (prod instance)";

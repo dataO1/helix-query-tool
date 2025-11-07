@@ -14,7 +14,7 @@ from typing import List, Dict, Any, Optional
 import yaml
 from dataclasses import dataclass
 # Use the official SearchWithText query (case-sensitive)
-from sentence_transformers import SentenceTransformer
+import ollama
 
 from helix.client import Client
 
@@ -43,8 +43,7 @@ class HelixSearchClient:
         """Semantic search via backend embeddings/semantic search"""
         try:
 
-            model = SentenceTransformer("Qwen/Qwen3-Embedding-0.6B")
-            embedding = model.encode(query).astype(float).tolist()
+            embedding = ollama.embeddings(model="nomic-embed-text", prompt=query)["embedding"]
             payload = {"query": embedding, "limit": limit}
             results = self.client.query("search_with_text", payload)
             # Post-filter if needed
